@@ -16,6 +16,8 @@ if(LINUX)
   SET(PLATFORM_NAME "linux")
 endif()
 
+set(LINK_AGAINST_OPENAL "1")
+
 set(CMAKE_LIBRARY_OUTPUT_DIRECTORY_DEBUG ${PROJECT_BINARY_DIR}/../bin/${PLATFORM_NAME}/Debug)
 set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY_DEBUG ${PROJECT_BINARY_DIR}/../bin/${PLATFORM_NAME}/Debug)
 set(CMAKE_LIBRARY_OUTPUT_DIRECTORY_RELEASE ${PROJECT_BINARY_DIR}/../bin/${PLATFORM_NAME}/Release)
@@ -35,19 +37,41 @@ if(MSVC)
 endif()
 
 set(CMAKE_CONFIGURATION_TYPES "Debug;Release" CACHE STRING "" FORCE)
+set(DEBUG_CONFIGURATIONS "Debug")
 
+set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -DUNICODE -D_UNICODE")
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -DUNICODE -D_UNICODE")
 if(MSVC)
+  set(CMAKE_C_FLAGS_DEBUG "${CMAKE_C_FLAGS_DEBUG} /Gm")
   set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} /Gm")
+  set(CMAKE_C_FLAGS_RELEASE "${CMAKE_C_FLAGS_RELEASE} /Zi /Gm")
   set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} /Zi /Gm")
 endif()
 
-include_directories(../../include)
+if(LINK_AGAINST_OPENAL)
+  # NOTE: Linux/Mac OpenAL support not yet implemented!
+  if(MSVC)
+    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -DLINK_AGAINST_OPENAL")
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -DLINK_AGAINST_OPENAL")
+    include_directories(../ext/OpenAL/include)
+  endif()
+endif()
+
+set(INCLUDE_DIR ../include)
+set(SRC_DIR ../src)
+set(GORILLA_INCLUDE_DIR ${INCLUDE_DIR})
+
+include_directories(${INCLUDE_DIR})
 
 set(GORILLA_INCLUDE
+  ${INCLUDE_DIR}/gorilla/ga.h
+  ${INCLUDE_DIR}/gorilla/ga_types.h
+  ${INCLUDE_DIR}/gorilla/ga_openal.h
   )
   
 set(GORILLA_SRC
+  ${SRC_DIR}/ga.c
+  ${SRC_DIR}/ga_openal.c
   )
 
 # OGG/Vorbis
@@ -103,3 +127,10 @@ add_library(gorilla STATIC
   ${OGGVORBIS_INCLUDE}
   ${OGGVORBIS_SRC}
   )
+
+if(LINK_AGAINST_OPENAL)
+  # NOTE: Linux/Mac OpenAL support not yet implemented!
+  if(MSVC)
+    target_link_libraries(gorilla ${CMAKE_CURRENT_SOURCE_DIR}/../ext/OpenAL/libs/Win32/OpenAL32.lib)
+  endif()
+endif()
