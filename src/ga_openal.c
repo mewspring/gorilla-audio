@@ -12,23 +12,16 @@
 
 const char* gaX_openAlErrorToString(ALuint error)
 {
-  const char *errMsg = 0;
+  const char* errMsg = 0;
   switch(error)
   {
-  case AL_NO_ERROR:       errMsg = "OpenAL error - None"; 
-    break;
-  case AL_INVALID_NAME:   errMsg = "OpenAL error - Invalid name.";
-    break;
-  case AL_INVALID_ENUM:   errMsg = "OpenAL error - Invalid enum.";
-    break;
-  case AL_INVALID_VALUE:  errMsg = "OpenAL error - Invalid value.";
-    break;
-  case AL_INVALID_OPERATION:  errMsg = "OpenAL error - Invalid operation.";
-    break;
-  case AL_OUT_OF_MEMORY:  errMsg = "OpenAL error - Out of memory.";
-    break;
-  default:                errMsg = "OpenAL error - Unknown error.";
-    break;
+  case AL_NO_ERROR: errMsg = "OpenAL error - None"; break;
+  case AL_INVALID_NAME: errMsg = "OpenAL error - Invalid name."; break;
+  case AL_INVALID_ENUM: errMsg = "OpenAL error - Invalid enum."; break;
+  case AL_INVALID_VALUE: errMsg = "OpenAL error - Invalid value."; break;
+  case AL_INVALID_OPERATION: errMsg = "OpenAL error - Invalid operation."; break;
+  case AL_OUT_OF_MEMORY: errMsg = "OpenAL error - Out of memory."; break;
+  default: errMsg = "OpenAL error - Unknown error."; break;
   }
   return errMsg;
 }
