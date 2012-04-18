@@ -16,7 +16,7 @@ extern "C"
 #define GA_SUCCESS 1
 #define GA_ERROR_GENERIC -1
 
-typedef struct ga_SystemCallbacks{
+typedef struct ga_SystemCallbacks {
   ga_int32 _dummy;
   // alloc
   // free
@@ -25,6 +25,17 @@ typedef struct ga_SystemCallbacks{
 
 void ga_initialize(ga_SystemCallbacks* in_callbacks);
 void ga_shutdown();
+
+/*
+  Gorilla Audio Format
+*/
+typedef struct ga_Format {
+  ga_int32 sampleRate;
+  ga_int32 bitsPerSample;
+  ga_int32 numChannels;
+} ga_Format;
+
+ga_int32 ga_format_sampleSize(ga_Format* in_format);
 
 /*
   Gorilla Audio Device
@@ -41,21 +52,26 @@ typedef struct ga_Device {
 } ga_Device;
 
 ga_Device* ga_device_open(ga_int32 in_type);
-ga_int32 ga_device_check();
-ga_int32 ga_device_queue();
+ga_int32 ga_device_check(ga_Device* in_device);
+ga_int32 ga_device_queue(ga_Device* in_device,
+                         ga_Format* in_format,
+                         ga_int32 in_numSamples,
+                         char* in_buffer);
 ga_int32 ga_device_close(ga_Device* in_device);
 
 /*
  Gorilla Software Mixer
 */
 typedef struct ga_Mixer {
-  ga_int32 _dummy;
+  ga_Format format;
+  ga_int32 latency; // in samples
 } ga_Mixer;
 
-ga_Mixer* ga_mixer_create(ga_int32 in_sampleRate, ga_int32 in_bitsPerSample, ga_int32 in_numChannels);
-ga_int32 ga_mixer_latency(ga_Mixer* in_mixer);
+ga_Mixer* ga_mixer_create(ga_Format* in_format);
 ga_int32 ga_mixer_sampleSize(ga_Mixer* in_mixer);
-void ga_mixer_mix(ga_Mixer* in_mixer, ga_int32 in_numSamples, char* out_buffer);
+void ga_mixer_mix(ga_Mixer* in_mixer,
+                  ga_int32 in_numSamples,
+                  char* out_buffer);
 void ga_mixer_destroy(ga_Mixer* in_mixer);
 
 #ifdef __cplusplus
