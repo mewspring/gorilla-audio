@@ -19,7 +19,7 @@ const char* gaX_openAlErrorToString(ALuint error)
   case AL_INVALID_NAME: errMsg = "OpenAL error - Invalid name."; break;
   case AL_INVALID_ENUM: errMsg = "OpenAL error - Invalid enum."; break;
   case AL_INVALID_VALUE: errMsg = "OpenAL error - Invalid value."; break;
-  case AL_INVALID_OPERATION: errMsg = "OpenAL error - Invalid operation."; break;
+  case AL_INVALID_OPERATION: errMsg = "OpenAL error - Invalid op."; break;
   case AL_OUT_OF_MEMORY: errMsg = "OpenAL error - Out of memory."; break;
   default: errMsg = "OpenAL error - Unknown error."; break;
   }
@@ -44,7 +44,7 @@ ga_DeviceImpl_OpenAl* gaX_device_open_openAl()
   ret->dev = alcOpenDevice("DirectSound");
 #else
   ret->dev = alcOpenDevice(0);
-#endif //WIN32
+#endif /* _WIN32 */
   if(!ret->dev)
     goto cleanup;
   ret->context = alcCreateContext(ret->dev, 0);
@@ -79,38 +79,46 @@ cleanup:
   free(ret);
   return 0;
 }
-void gaX_device_close_openAl(ga_DeviceImpl_OpenAl* in_dev)
+ga_result gaX_device_close_openAl(ga_DeviceImpl_OpenAl* in_dev)
 {
   alcCloseDevice(in_dev->dev);
   in_dev->devType = GA_DEVICE_TYPE_UNKNOWN;
   free(in_dev);
+  return GA_SUCCESS;
 }
 ga_int32 gaX_device_check_openAl(ga_DeviceImpl_OpenAl* in_device)
 {
+  ga_int32 whichBuf = 0;
   ga_DeviceImpl_OpenAl* d = in_device;
   ga_int32 numProcessed = 0;
   alGetSourcei(in_device->hwSource, AL_BUFFERS_PROCESSED, &numProcessed);
+  CHECK_AL_ERROR;
   while(numProcessed--)
-    alSourceUnqueueBuffers(d->hwSource, 1, &d->hwBuffers[(d->nextBuffer + d->emptyBuffers++) % 2]);
-  printf("%d\n", d->emptyBuffers);
+  {
+    whichBuf = (d->nextBuffer + d->emptyBuffers++) % 2;
+    alSourceUnqueueBuffers(d->hwSource, 1, &d->hwBuffers[whichBuf]);
+    CHECK_AL_ERROR;
+  }
   return d->emptyBuffers;
 }
-ga_int32 gaX_device_queue_openAl(ga_DeviceImpl_OpenAl* in_device,
+ga_result gaX_device_queue_openAl(ga_DeviceImpl_OpenAl* in_device,
                                  ga_Format* in_format,
                                  ga_int32 in_numSamples,
-                                 char* in_buffer)
+                                 void* in_buffer)
 {
-  ga_int32 formatOpenAl;
+  ga_int32 formatOal;
   ga_int32 sampleSize;
   ALint state;
+  ga_int32 bps = in_format->bitsPerSample;
   ga_DeviceImpl_OpenAl* d = in_device;
 
   if(in_format->numChannels == 1)
-    formatOpenAl = (ga_int32)(in_format->bitsPerSample == 16 ? AL_FORMAT_MONO16 : AL_FORMAT_MONO8);
+    formatOal = (ga_int32)(bps == 16 ? AL_FORMAT_MONO16 : AL_FORMAT_MONO8);
   else
-    formatOpenAl = (ga_int32)(in_format->bitsPerSample == 16 ? AL_FORMAT_STEREO16 : AL_FORMAT_STEREO8);
+    formatOal = (ga_int32)(bps == 16 ? AL_FORMAT_STEREO16 : AL_FORMAT_STEREO8);
   sampleSize = ga_format_sampleSize(in_format);
-  alBufferData(d->hwBuffers[d->nextBuffer], formatOpenAl, &in_buffer[0], (ALsizei)in_numSamples * sampleSize, in_format->sampleRate);
+  alBufferData(d->hwBuffers[d->nextBuffer], formatOal, in_buffer,
+    (ALsizei)in_numSamples * sampleSize, in_format->sampleRate);
   CHECK_AL_ERROR;
   if(AUDIO_ERROR != AL_NO_ERROR)
     return GA_ERROR_GENERIC;
@@ -123,7 +131,10 @@ ga_int32 gaX_device_queue_openAl(ga_DeviceImpl_OpenAl* in_device,
   alGetSourcei(d->hwSource, AL_SOURCE_STATE, &state);
   CHECK_AL_ERROR;
   if(state != AL_PLAYING)
-    alSourcePlay(d->hwSource); // NOTE: calling this, even as a 'noop', can cause a clicking sound. BOO, OpenAl. Boo.
+  {
+    /* NOTE: calling this, even as a 'noop', can cause a clicking sound. */
+    alSourcePlay(d->hwSource);
+  }
   CHECK_AL_ERROR;
   return GA_SUCCESS;
 }

@@ -6,9 +6,12 @@ extern "C"
 {
 #endif /* __cplusplus */
 
-// WARNING: Do not typedef char or bool (also, note that char != signed char != unsigned char)
-// typedef char         char;
-// typedef bool         bool;
+/*
+  WARNING: Do not typedef char or bool!
+  (also, note that char != signed char != unsigned char)
+  typedef char         char;
+  typedef bool         bool;
+*/
 
 #ifdef _WIN32
   typedef unsigned char     ga_uint8;
@@ -22,7 +25,7 @@ extern "C"
   typedef float             ga_float32;
   typedef double            ga_float64;
 
-#elif __GNUC__ // GCC
+#elif __GNUC__ /* GCC */
   typedef unsigned char          ga_uint8;
   typedef unsigned short         ga_uint16;
   typedef unsigned int           ga_uint32;
@@ -44,4 +47,4 @@ extern "C"
 }
 #endif /* __cplusplus */
 
-#endif //_GORILLA_GA_TYPES_H
+#endif /* _GORILLA_GA_TYPES_H */
