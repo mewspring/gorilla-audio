@@ -16,7 +16,7 @@ if(LINUX)
   SET(PLATFORM_NAME "linux")
 endif()
 
-#set(LINK_AGAINST_OPENAL "1")
+set(LINK_AGAINST_OPENAL "1")
 
 set(CMAKE_LIBRARY_OUTPUT_DIRECTORY_DEBUG ${PROJECT_BINARY_DIR}/../bin/${PLATFORM_NAME}/Debug)
 set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY_DEBUG ${PROJECT_BINARY_DIR}/../bin/${PLATFORM_NAME}/Debug)
@@ -65,12 +65,16 @@ include_directories(${INCLUDE_DIR})
 
 set(GORILLA_INCLUDE
   ${INCLUDE_DIR}/gorilla/ga.h
+  ${INCLUDE_DIR}/gorilla/gau.h
+  ${INCLUDE_DIR}/gorilla/ga_wav.h
   ${INCLUDE_DIR}/gorilla/ga_types.h
   ${INCLUDE_DIR}/gorilla/ga_openal.h
   )
   
 set(GORILLA_SRC
   ${SRC_DIR}/ga.c
+  ${SRC_DIR}/gau.c
+  ${SRC_DIR}/ga_wav.c
   ${SRC_DIR}/ga_openal.c
   )
 

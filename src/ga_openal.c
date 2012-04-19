@@ -34,7 +34,7 @@ static ga_int32 AUDIO_ERROR = 0;
 
 ga_DeviceImpl_OpenAl* gaX_device_open_openAl()
 {
-  ga_DeviceImpl_OpenAl* ret = malloc(sizeof(ga_DeviceImpl_OpenAl));
+  ga_DeviceImpl_OpenAl* ret = gaX_cb->allocFunc(sizeof(ga_DeviceImpl_OpenAl));
   ALCboolean ctxRet;
 
   ret->devType = GA_DEVICE_TYPE_OPENAL;
@@ -76,14 +76,14 @@ cleanup:
     alcDestroyContext(ret->context);
   if(ret->dev)
     alcCloseDevice(ret->dev);
-  free(ret);
+  gaX_cb->freeFunc(ret);
   return 0;
 }
 ga_result gaX_device_close_openAl(ga_DeviceImpl_OpenAl* in_dev)
 {
   alcCloseDevice(in_dev->dev);
   in_dev->devType = GA_DEVICE_TYPE_UNKNOWN;
-  free(in_dev);
+  gaX_cb->freeFunc(in_dev);
   return GA_SUCCESS;
 }
 ga_int32 gaX_device_check_openAl(ga_DeviceImpl_OpenAl* in_device)

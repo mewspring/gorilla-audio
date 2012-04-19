@@ -43,6 +43,16 @@ extern "C"
 #error Types not yet specified for this platform
 #endif
 
+/*
+  Error Codes
+*/
+typedef ga_int32 ga_result;
+
+#define GA_FALSE 0
+#define GA_TRUE 1
+#define GA_SUCCESS 1
+#define GA_ERROR_GENERIC -1
+
 #ifdef __cplusplus
 }
 #endif /* __cplusplus */
