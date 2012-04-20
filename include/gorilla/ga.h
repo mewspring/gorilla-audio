@@ -27,6 +27,29 @@ ga_result ga_initialize(ga_SystemOps* in_callbacks);
 ga_result ga_shutdown();
 
 /*
+  Circular Buffer
+*/
+typedef struct ga_CircBuffer {
+  ga_uint8* data;
+  ga_uint32 dataSize;
+  ga_uint32 nextAvail;
+  ga_uint32 nextFree;
+} ga_CircBuffer;
+
+ga_CircBuffer* ga_buffer_create(ga_uint32 in_size);
+ga_result ga_buffer_destroy(ga_CircBuffer* in_buffer);
+ga_uint32 ga_buffer_bytesAvail(ga_CircBuffer* in_buffer);
+ga_uint32 ga_buffer_bytesFree(ga_CircBuffer* in_buffer);
+ga_result ga_buffer_write(ga_CircBuffer* in_buffer, void* in_data,
+                          ga_uint32 in_numBytes);
+ga_result ga_buffer_getData(ga_CircBuffer* in_buffer, ga_uint32 in_numBytes,
+                            void** out_dataA, ga_uint32* out_sizeA,
+                            void** out_dataB, ga_uint32* out_sizeB);
+void ga_buffer_read(ga_CircBuffer* in_buffer, void* in_data,
+                    ga_uint32 in_numBytes);
+void ga_buffer_consume(ga_CircBuffer* in_buffer, ga_uint32 in_numBytes);
+
+/*
   Gorilla Audio Format
 */
 typedef struct ga_Format {
@@ -95,6 +118,11 @@ ga_result ga_sound_destroy(ga_Sound* in_sound);
 #define GA_HANDLE_PARAM_GAIN 3
 #define GA_HANDLE_PARAM_LOOP 4
 
+#define GA_HANDLE_STATE_INITIAL 0
+#define GA_HANDLE_STATE_PLAYING 1
+#define GA_HANDLE_STATE_STOPPED 2
+#define GA_HANDLE_STATE_FINISHED 3
+
 typedef void (*ga_FinishCallback)(ga_Handle*, void*);
 
 #define GA_HANDLE_HEADER \
@@ -118,8 +146,11 @@ typedef struct ga_Handle {
   GA_HANDLE_HEADER
 } ga_Handle;
 
-typedef void (*ga_StreamProduceFunc)();
-typedef void (*ga_StreamDestroyFunc)();
+typedef struct ga_HandleStream ga_HandleStream;
+
+typedef void (*ga_StreamProduceFunc)(ga_HandleStream* in_handle);
+typedef void (*ga_StreamSeekFunc)(ga_HandleStream* in_handle, ga_int32 in_numSamples);
+typedef void (*ga_StreamDestroyFunc)(ga_HandleStream* in_handle);
 
 #define GA_HANDLE_TYPE_UNKNOWN 0
 #define GA_HANDLE_TYPE_STATIC 1
@@ -132,22 +163,23 @@ typedef struct ga_HandleStatic {
 
 typedef struct ga_HandleStream {
   GA_HANDLE_HEADER
-  ga_StreamProduceFunc createFunc;
+  ga_StreamProduceFunc produceFunc;
+  ga_StreamSeekFunc seekFunc;
   ga_StreamDestroyFunc destroyFunc;
-  /*
-    seek func
-
-  */
   void* streamContext;
   ga_int32 group;
+  ga_CircBuffer* buffer;
+  ga_int32 nextSample;
 } ga_HandleStream;
 
 ga_Handle* ga_handle_create(ga_Mixer* in_mixer, ga_Sound* in_sound);
 ga_Handle* ga_handle_createStream(ga_Mixer* in_mixer,
-                                  ga_StreamProduceFunc in_createFunc,
+                                  ga_int32 in_group,
+                                  ga_int32 in_bufferSize,
+                                  ga_StreamProduceFunc in_produceFunc,
+                                  ga_StreamSeekFunc in_seekFunc,
                                   ga_StreamDestroyFunc in_destroyFunc,
-                                  void* in_context,
-                                  ga_int32 in_group);
+                                  void* in_context);
 ga_result ga_handle_destroy(ga_Handle* in_handle);
 ga_result ga_handle_play(ga_Handle* in_handle);
 ga_result ga_handle_stop(ga_Handle* in_handle);
@@ -185,29 +217,6 @@ ga_Mixer* ga_mixer_create(ga_Format* in_format, ga_int32 in_numSamples);
 ga_result ga_mixer_stream(ga_Mixer* in_mixer);
 ga_result ga_mixer_mix(ga_Mixer* in_mixer, void* out_buffer);
 ga_result ga_mixer_destroy(ga_Mixer* in_mixer);
-
-/*
-  Circular Buffer
-*/
-typedef struct ga_CircBuffer {
-  ga_uint8* data;
-  ga_uint32 dataSize;
-  ga_uint32 nextAvail;
-  ga_uint32 nextFree;
-} ga_CircBuffer;
-
-ga_CircBuffer* ga_buffer_create(ga_uint32 in_size);
-ga_result ga_buffer_destroy(ga_CircBuffer* in_buffer);
-ga_uint32 ga_buffer_bytesAvail(ga_CircBuffer* in_buffer);
-ga_uint32 ga_buffer_bytesFree(ga_CircBuffer* in_buffer);
-ga_result ga_buffer_write(ga_CircBuffer* in_buffer, void* in_data,
-                          ga_uint32 in_numBytes);
-ga_result ga_buffer_getData(ga_CircBuffer* in_buffer, ga_uint32 in_numBytes,
-                            void** out_dataA, ga_uint32* out_sizeA,
-                            void** out_dataB, ga_uint32* out_sizeB);
-void ga_buffer_read(ga_CircBuffer* in_buffer, void* in_data,
-                    ga_uint32 in_numBytes);
-void ga_buffer_consume(ga_CircBuffer* in_buffer, ga_uint32 in_numBytes);
 
 #ifdef __cplusplus
 }

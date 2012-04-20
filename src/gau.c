@@ -15,14 +15,16 @@ typedef struct ga_StreamContext_File {
   ga_WavData wavData;
 } ga_StreamContext_File;
 
-void gauX_stream_file_produce(ga_Sound* in_sound, void* in_context);
-void gauX_stream_file_destroy(void* in_context);
+void gauX_sound_stream_file_produce(ga_HandleStream* in_stream);
+void gauX_sound_stream_file_seek(ga_HandleStream* in_handle, ga_int32 in_numSamples);
+void gauX_sound_stream_file_destroy(ga_HandleStream* in_stream);
 
 ga_Handle* gau_stream_file(ga_Mixer* in_mixer,
+                           ga_int32 in_group,
+                           ga_int32 in_bufferSize,
                            const char* in_filename,
                            ga_int32 in_fileFormat,
-                           ga_uint32 in_byteOffset,
-                           ga_int32 in_group)
+                           ga_uint32 in_byteOffset)
 {
   ga_int32 validHdr;
   ga_StreamContext_File* context;
@@ -34,7 +36,6 @@ ga_Handle* gau_stream_file(ga_Mixer* in_mixer,
   context->file = fopen(context->filename, "rb");
   if(!context->file)
     goto cleanup;
-
   if(in_fileFormat == GA_FILE_FORMAT_WAV)
   {
     validHdr = gaX_sound_load_wav_header(in_filename, in_byteOffset, &context->wavData);
@@ -42,12 +43,13 @@ ga_Handle* gau_stream_file(ga_Mixer* in_mixer,
       goto cleanup;
     fseek(context->file, context->wavData.dataOffset, SEEK_SET);
   }
-
   return ga_handle_createStream(in_mixer,
-                                &gauX_stream_file_produce,
-                                &gauX_stream_file_destroy,
-                                context,
-                                in_group);
+                                in_group,
+                                in_bufferSize,
+                                &gauX_sound_stream_file_produce,
+                                &gauX_sound_stream_file_seek,
+                                &gauX_sound_stream_file_destroy,
+                                context);
 
 cleanup:
   if(context->file)
@@ -57,12 +59,17 @@ cleanup:
   return 0;
 }
 
-void gauX_sound_stream_file_produce(ga_Sound* in_sound, void* in_context)
+void gauX_sound_stream_file_produce(ga_HandleStream* in_handle)
 {
+  ga_StreamContext_File* context = (ga_StreamContext_File*)in_handle->streamContext;
 }
-void gauX_sound_stream_file_destroy(void* in_context)
+void gauX_sound_stream_file_seek(ga_HandleStream* in_handle, ga_int32 in_numSamples)
 {
-  ga_StreamContext_File* context = (ga_StreamContext_File*)in_context;
+  ga_StreamContext_File* context = (ga_StreamContext_File*)in_handle->streamContext;
+}
+void gauX_sound_stream_file_destroy(ga_HandleStream* in_handle)
+{
+  ga_StreamContext_File* context = (ga_StreamContext_File*)in_handle->streamContext;
   fclose(context->file);
   gaX_cb->freeFunc(context->filename);
 }
