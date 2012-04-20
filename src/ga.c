@@ -123,7 +123,7 @@ ga_Sound* ga_sound_load(const char* in_filename, ga_int32 in_fileFormat,
       return 0;
     }
     ret->loopStart = 0;
-    ret->loopEnd = ga_sound_numSamples((ga_Sound*)ret);
+    ret->loopEnd = -1;
     return (ga_Sound*)ret;
 
   case GA_FILE_FORMAT_OGG:
@@ -224,6 +224,8 @@ ga_Handle* ga_handle_create(ga_Mixer* in_mixer, ga_Sound* in_sound)
   h->handleType = GA_HANDLE_TYPE_STATIC;
   hs->nextSample = 0;
   hs->sound = in_sound;
+  hs->loopStart = in_sound->loopStart;
+  hs->loopEnd = in_sound->loopEnd;
   gaX_handle_init(h, in_mixer);
   gaX_mixer_addHandle(in_mixer, h);
   return h;
@@ -231,8 +233,10 @@ ga_Handle* ga_handle_create(ga_Mixer* in_mixer, ga_Sound* in_sound)
 ga_Handle* ga_handle_createStream(ga_Mixer* in_mixer,
                                   ga_int32 in_group,
                                   ga_int32 in_bufferSize,
+                                  ga_Format* in_format,
                                   ga_StreamProduceFunc in_produceFunc,
                                   ga_StreamSeekFunc in_seekFunc,
+                                  ga_StreamTellFunc in_tellFunc,
                                   ga_StreamDestroyFunc in_destroyFunc,
                                   void* in_context)
 {
@@ -244,13 +248,17 @@ ga_Handle* ga_handle_createStream(ga_Mixer* in_mixer,
   hs = (ga_HandleStream*)gaX_cb->allocFunc(sizeof(ga_HandleStream));
   h = (ga_Handle*)hs;
   h->handleType = GA_HANDLE_TYPE_STREAM;
+  memcpy(&hs->format, in_format, sizeof(ga_Format));
   hs->buffer = cb;
   hs->nextSample = 0;
   hs->group = in_group;
   hs->produceFunc = in_produceFunc;
   hs->seekFunc = in_seekFunc;
+  hs->tellFunc = in_tellFunc;
   hs->destroyFunc = in_destroyFunc;
   hs->streamContext = in_context;
+  hs->loopStart = 0;
+  hs->loopEnd = -1;
   gaX_handle_init(h, in_mixer);
   gaX_mixer_addHandle(in_mixer, h);
   return h;
@@ -361,36 +369,42 @@ ga_result ga_handle_seek(ga_Handle* in_handle, ga_int32 in_sampleOffset)
   {
   case GA_HANDLE_TYPE_STATIC:
     {
-      ga_HandleStatic* hs = (ga_HandleStatic*)gaX_cb->allocFunc(sizeof(ga_HandleStatic));
-      if(in_sampleOffset >= ga_sound_numSamples(in_handle->sound))
+      ga_HandleStatic* hs = (ga_HandleStatic*)in_handle;
+      if(in_sampleOffset >= ga_sound_numSamples(hs->sound))
         in_sampleOffset = 0;
       hs->nextSample = in_sampleOffset;
       break;
     }
   case GA_HANDLE_TYPE_STREAM:
     {
-      /* TODO! */
+      ga_HandleStream* hs = (ga_HandleStream*)in_handle;
+      if(hs->seekFunc)
+        hs->seekFunc(hs, in_sampleOffset);
       break;
     }
   }
   return GA_SUCCESS;
 }
-ga_int32 ga_handle_tell(ga_Handle* in_handle)
+ga_int32 ga_handle_tell(ga_Handle* in_handle, ga_int32 in_param)
 {
   switch(in_handle->handleType)
   {
   case GA_HANDLE_TYPE_STATIC:
     {
-      ga_HandleStatic* hs = (ga_HandleStatic*)gaX_cb->allocFunc(sizeof(ga_HandleStatic));
-      return hs->nextSample;
+      ga_HandleStatic* hs = (ga_HandleStatic*)in_handle;
+      if(in_param == GA_TELL_PARAM_CURRENT)
+        return hs->nextSample;
+      else if(in_param == GA_TELL_PARAM_TOTAL)
+        return hs->sound->numSamples;
     }
   case GA_HANDLE_TYPE_STREAM:
     {
-      /* TODO! */
-      return 0;
+      ga_HandleStream* hs = (ga_HandleStream*)in_handle;
+      if(hs->tellFunc)
+        return hs->tellFunc(hs, in_param);
     }
   }
-  return 0;
+  return -1;
 }
 
 ga_result ga_handle_envelope(ga_Handle* in_handle, ga_int32 in_duration,
@@ -433,7 +447,7 @@ void gaX_mixer_mix_buffer(ga_Mixer* in_mixer, ga_Handle* in_handle,
   ga_Format* mixFmt = &in_mixer->format;
   ga_int32 mixerChannels = mixFmt->numChannels;
   ga_int32 srcChannels = in_srcFormat->numChannels;
-  ga_int32 numSamples = (ga_int32)ga_sound_numSamples(h->sound);
+  ga_int32 numSamples = in_srcSamples;
   ga_float32 sampleScale = in_srcFormat->sampleRate / (ga_float32)mixFmt->sampleRate * h->pitch;
   ga_int32* dst = in_dstBuffer;
   ga_int32 numToFill = in_dstSamples;
@@ -501,6 +515,7 @@ void gaX_mixer_mix_static(ga_Mixer* in_mixer, ga_HandleStatic* in_handle)
     ga_int32* dstBuffer = &m->mixBuffer[0];
     ga_int32 dstSamples = m->numSamples;
     ga_int32 numSrcSamples = ga_sound_numSamples(s);
+    ga_int32 endSample = (h->loop && h->loopEnd >= 0) ? h->loopEnd : numSrcSamples;
     ga_int32 numToMix = numSrcSamples - h->nextSample;
     numToMix = numToMix > dstSamples ? dstSamples : numToMix;
     if(numToMix > 0)
@@ -529,7 +544,46 @@ void gaX_mixer_mix_static(ga_Mixer* in_mixer, ga_HandleStatic* in_handle)
 }
 void gaX_mixer_mix_streaming(ga_Mixer* in_mixer, ga_HandleStream* in_handle, ga_int32* in_buffer, ga_int32 in_numSamples)
 {
-  /* TODO! */
+  /* mutex.lock() */
+  if(in_handle->state == GA_HANDLE_STATE_PLAYING &&
+    (ga_int32)ga_buffer_bytesAvail(in_handle->buffer) >= in_numSamples * ga_format_sampleSize(&in_handle->format))
+  {
+    ga_Mixer* m = in_mixer;
+    ga_HandleStream* h = in_handle;
+    ga_int32 srcSampleSize = ga_format_sampleSize(&h->format);
+    ga_int32 dstSampleSize = ga_format_sampleSize(&m->format);
+    ga_int32* dstBuffer = &m->mixBuffer[0];
+    ga_int32 dstSamples = m->numSamples;
+    ga_int32 numSrcSamples = ga_buffer_bytesAvail(in_handle->buffer) / ga_format_sampleSize(&in_handle->format);
+    ga_int32 numToMix = numSrcSamples;
+    numToMix = numToMix > dstSamples ? dstSamples : numToMix;
+    if(numToMix > 0)
+    {
+      void* dataA;
+      void* dataB;
+      ga_uint32 sizeA;
+      ga_uint32 sizeB;
+      ga_int32 bytesToMix = numToMix * srcSampleSize;
+      ga_int32 numBuffers = ga_buffer_getAvail(in_handle->buffer, bytesToMix,
+                                               &dataA, &sizeA, &dataB, &sizeB);
+      if(numBuffers >= 1)
+      {
+        gaX_mixer_mix_buffer(in_mixer, (ga_Handle*)in_handle, dataA,
+                             sizeA / srcSampleSize, &in_handle->format,
+                             dstBuffer, dstSamples);
+        if(numBuffers == 2)
+        {
+          gaX_mixer_mix_buffer(in_mixer, (ga_Handle*)in_handle, dataB,
+                               sizeB / srcSampleSize, &in_handle->format,
+                               dstBuffer, dstSamples);
+        }
+      }
+      ga_buffer_consume(in_handle->buffer, bytesToMix);
+      dstSamples -= numToMix;
+      dstBuffer += numToMix * dstSampleSize;
+    }
+  }
+  /* mutex.lock() */
 }
 ga_result ga_mixer_update(ga_Mixer* in_mixer)
 {
@@ -542,7 +596,8 @@ ga_result ga_mixer_update(ga_Mixer* in_mixer)
     case GA_HANDLE_TYPE_STREAM:
       {
         ga_HandleStream* hs = (ga_HandleStream*)h;
-        if(hs->produceFunc)
+        /* If nextSample < 0, the stream has finished */
+        if(h->nextSample >= 0 && hs->produceFunc)
           hs->produceFunc(hs);
         break;
       }
@@ -581,20 +636,6 @@ ga_result ga_mixer_mix(ga_Mixer* in_mixer, void* out_buffer)
     h = h->next;
   }
 
-  /* Remove finished handles */
-  h = m->handles.next;
-  while(h != &m->handles)
-  {
-    ga_Handle* oldHandle = h;
-    h = h->next;
-    if(ga_handle_finished(oldHandle))
-    {
-      gaX_mixer_removeHandle(oldHandle->mixer, oldHandle);
-      if(oldHandle->callback)
-        oldHandle->callback(oldHandle, oldHandle->context);
-    }
-  }
-
   switch(fmt->bitsPerSample) /* mixBuffer will already be correct bps */
   {
   case 8:
@@ -616,6 +657,24 @@ ga_result ga_mixer_mix(ga_Mixer* in_mixer, void* out_buffer)
         mix[i] = (ga_int16)(sample > -32768 ? (sample < 32767 ? sample : 32767) : -32768);
       }
       break;
+    }
+  }
+  return GA_SUCCESS;
+}
+ga_result ga_mixer_dispatch(ga_Mixer* in_mixer)
+{
+  /* Remove finished handles */
+  ga_Mixer* m = in_mixer;
+  ga_Handle* h = m->handles.next;
+  while(h != &m->handles)
+  {
+    ga_Handle* oldHandle = h;
+    h = h->next;
+    if(ga_handle_finished(oldHandle))
+    {
+      gaX_mixer_removeHandle(oldHandle->mixer, oldHandle);
+      if(oldHandle->callback)
+        oldHandle->callback(oldHandle, oldHandle->context);
     }
   }
   return GA_SUCCESS;
@@ -669,9 +728,38 @@ ga_uint32 ga_buffer_bytesFree(ga_CircBuffer* in_buffer)
   /* producer/consumer call (all race-induced errors should be tolerable) */
   return in_buffer->dataSize - ga_buffer_bytesAvail(in_buffer);
 }
+ga_int32 ga_buffer_getFree(ga_CircBuffer* in_buffer, ga_uint32 in_numBytes,
+                           void** out_dataA, ga_uint32* out_sizeA,
+                           void** out_dataB, ga_uint32* out_sizeB)
+{
+  /* producer-only call */
+  ga_CircBuffer* b = in_buffer;
+  ga_uint32 size = b->dataSize;
+  ga_uint32 nextFree = b->nextFree % size;
+  ga_uint32 nextAvail = b->nextAvail % size;
+  ga_uint32 maxBytes = size - nextFree;
+  if(in_numBytes > ga_buffer_bytesFree(b))
+    return -1;
+  if(maxBytes >= in_numBytes)
+  {
+    *out_dataA = &b->data[nextFree];
+    *out_sizeA = in_numBytes;
+    return 1;
+  }
+  else
+  {
+    *out_dataA = &b->data[nextFree];
+    *out_sizeA = maxBytes;
+    *out_dataB = &b->data[0];
+    *out_sizeB = in_numBytes - maxBytes;
+    return 2;
+  }
+}
 ga_result ga_buffer_write(ga_CircBuffer* in_buffer, void* in_data,
                           ga_uint32 in_numBytes)
 {
+  /* TODO: Make this call ga_buffer_getFree() instead of duping code */
+
   /* producer-only call */
   ga_CircBuffer* b = in_buffer;
   ga_uint32 size = b->dataSize;
@@ -690,9 +778,9 @@ ga_result ga_buffer_write(ga_CircBuffer* in_buffer, void* in_data,
   b->nextFree += in_numBytes;
   return GA_SUCCESS;
 }
-ga_int32 ga_buffer_getData(ga_CircBuffer* in_buffer, ga_uint32 in_numBytes,
-                           void** out_dataA, ga_uint32* out_sizeA,
-                           void** out_dataB, ga_uint32* out_sizeB)
+ga_int32 ga_buffer_getAvail(ga_CircBuffer* in_buffer, ga_uint32 in_numBytes,
+                            void** out_dataA, ga_uint32* out_sizeA,
+                            void** out_dataB, ga_uint32* out_sizeB)
 {
   /* consumer-only call */
   ga_CircBuffer* b = in_buffer;
@@ -724,10 +812,10 @@ void ga_buffer_read(ga_CircBuffer* in_buffer, void* in_data,
   /* consumer-only call */
   void* data[2];
   ga_uint32 size[2];
-  ga_int32 ret = ga_buffer_getData(in_buffer, in_numBytes,
+  ga_int32 ret = ga_buffer_getAvail(in_buffer, in_numBytes,
                                    &data[0], &size[0],
                                    &data[1], &size[1]);
-  if(ret == 1)
+  if(ret >= 1)
   {
     memcpy(in_data, data[0], size[0]);
     if(ret == 2)
