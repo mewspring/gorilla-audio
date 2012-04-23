@@ -2,6 +2,7 @@
 
 #include "gorilla/ga_wav.h"
 #include "gorilla/ga_openal.h"
+#include "gorilla/ga_thread.h"
 
 #include <stdio.h>
 #include <stdlib.h>
