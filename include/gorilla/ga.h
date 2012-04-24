@@ -2,6 +2,7 @@
 #define _GORILLA_GA_H
 
 #include "ga_types.h"
+#include "ga_thread.h"
 
 #ifdef __cplusplus
 extern "C"
@@ -113,6 +114,20 @@ ga_int32 ga_sound_numSamples(ga_Sound* in_sound);
 ga_result ga_sound_destroy(ga_Sound* in_sound);
 
 /*
+Gorilla Linked List
+*/
+typedef struct ga_Link ga_Link;
+typedef struct ga_Link {
+  ga_Link* next;
+  ga_Link* prev;
+  void* data;
+} ga_Link;
+
+void ga_list_head(ga_Link* in_head);
+void ga_list_link(ga_Link* in_head, ga_Link* in_link, void* in_data);
+void ga_list_unlink(ga_Link* in_link);
+
+/*
   Gorilla Handle
 */
 #define GA_HANDLE_PARAM_UNKNOWN 0
@@ -121,10 +136,12 @@ ga_result ga_sound_destroy(ga_Sound* in_sound);
 #define GA_HANDLE_PARAM_GAIN 3
 #define GA_HANDLE_PARAM_LOOP 4
 
-#define GA_HANDLE_STATE_INITIAL 0
-#define GA_HANDLE_STATE_PLAYING 1
-#define GA_HANDLE_STATE_STOPPED 2
-#define GA_HANDLE_STATE_FINISHED 3
+#define GA_HANDLE_STATE_UNKNOWN 0
+#define GA_HANDLE_STATE_INITIAL 1
+#define GA_HANDLE_STATE_PLAYING 2
+#define GA_HANDLE_STATE_STOPPED 3
+#define GA_HANDLE_STATE_FINISHED 4
+#define GA_HANDLE_STATE_DESTROYED 5
 
 typedef void (*ga_FinishCallback)(ga_Handle*, void*);
 
@@ -134,8 +151,6 @@ typedef void (*ga_FinishCallback)(ga_Handle*, void*);
   ga_FinishCallback callback; \
   void* context; \
   ga_int32 state; \
-  ga_Handle* next; \
-  ga_Handle* prev; \
   ga_float32 gain; \
   ga_float32 pitch; \
   ga_float32 pan; \
@@ -145,7 +160,11 @@ typedef void (*ga_FinishCallback)(ga_Handle*, void*);
   ga_float32 envGainB; \
   ga_int32 loopStart; \
   ga_int32 loopEnd; \
-  ga_int32 nextSample;
+  ga_int32 nextSample; \
+  ga_Link dispatchLink; \
+  ga_Link mixLink; \
+  ga_Link streamLink; \
+  ga_Mutex* handleMutex;
 
 typedef struct ga_Handle {
   GA_HANDLE_HEADER
@@ -196,6 +215,7 @@ ga_result ga_handle_destroy(ga_Handle* in_handle);
 ga_result ga_handle_play(ga_Handle* in_handle);
 ga_result ga_handle_stop(ga_Handle* in_handle);
 ga_int32 ga_handle_finished(ga_Handle* in_handle);
+ga_int32 ga_handle_destroyed(ga_Handle* in_handle);
 ga_result ga_handle_setCallback(ga_Handle* in_handle,
                                 ga_FinishCallback in_callback,
                                 void* in_context);
@@ -211,8 +231,6 @@ ga_result ga_handle_envelope(ga_Handle* in_handle, ga_int32 in_duration,
                              ga_float32 in_gain);
 ga_result ga_handle_seek(ga_Handle* in_handle, ga_int32 in_sampleOffset);
 ga_int32 ga_handle_tell(ga_Handle* in_handle, ga_int32 in_param);
-ga_result ga_handle_lock(ga_Handle* in_handle);
-ga_result ga_handle_unlock(ga_Handle* in_handle);
 
 /*
   Gorilla Mixer
@@ -222,11 +240,16 @@ typedef struct ga_Mixer {
   ga_Format mixFormat;
   ga_int32 numSamples;
   ga_int32* mixBuffer;
-  ga_Handle handles;
+  ga_Link dispatchList;
+  ga_Mutex* dispatchMutex;
+  ga_Link mixList;
+  ga_Mutex* mixMutex;
+  ga_Link streamList;
+  ga_Mutex* streamMutex;
 } ga_Mixer;
 
 ga_Mixer* ga_mixer_create(ga_Format* in_format, ga_int32 in_numSamples);
-ga_result ga_mixer_update(ga_Mixer* in_mixer);
+ga_result ga_mixer_stream(ga_Mixer* in_mixer);
 ga_result ga_mixer_mix(ga_Mixer* in_mixer, void* out_buffer);
 ga_result ga_mixer_dispatch(ga_Mixer* in_mixer);
 ga_result ga_mixer_destroy(ga_Mixer* in_mixer);
