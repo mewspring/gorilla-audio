@@ -19,7 +19,6 @@ int main(int argc, char** argv)
 
   ga_initialize(0);
   dev = ga_device_open(GA_DEVICE_TYPE_OPENAL);
-
   if(!dev)
     return 1;
 
@@ -27,7 +26,6 @@ int main(int argc, char** argv)
   fmt.bitsPerSample = 16;
   fmt.numChannels = 2;
   fmt.sampleRate = 44100;
-
   numSamples = 2048;
   sampleSize = ga_format_sampleSize(&fmt);
   buf = (ga_int16*)malloc(numSamples * sampleSize);
@@ -41,10 +39,10 @@ int main(int argc, char** argv)
       {
         sample = (ga_int16)(sin(t) * 32768);
         sample = (sample > -32768 ? (sample < 32767 ? sample : 32767) : -32768);
-        pan = sin(t / 300) / 2.0f + 0.5f;
-        buf[i] = sample * pan;
-        buf[i + 1] = sample * (1.0f - pan);
-        t = t + 0.05f;
+        pan = (ga_float32)sin(t / 300) / 2.0f + 0.5f;
+        buf[i] = (ga_int16)(sample * pan);
+        buf[i + 1] = (ga_int16)(sample * (1.0f - pan));
+        t = t + 0.03f;
         if(t > 3.14159265f)
           t -= 3.14159265f;
       }
