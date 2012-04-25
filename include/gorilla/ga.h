@@ -16,18 +16,6 @@ typedef struct ga_Handle ga_Handle;
 typedef struct ga_Mixer ga_Mixer;
 
 /*
-  Gorilla System
-*/
-typedef struct ga_SystemOps {
-  void* (*allocFunc)(ga_uint32 in_size);
-  void (*freeFunc)(void* in_ptr);
-} ga_SystemOps;
-extern ga_SystemOps* gaX_cb;
-
-ga_result ga_initialize(ga_SystemOps* in_callbacks);
-ga_result ga_shutdown();
-
-/*
   Circular Buffer
 */
 typedef struct ga_CircBuffer {
@@ -52,6 +40,32 @@ ga_result ga_buffer_getAvail(ga_CircBuffer* in_buffer, ga_uint32 in_numBytes,
 void ga_buffer_read(ga_CircBuffer* in_buffer, void* in_data,
                     ga_uint32 in_numBytes);
 void ga_buffer_consume(ga_CircBuffer* in_buffer, ga_uint32 in_numBytes);
+
+/*
+  Linked List
+*/
+typedef struct ga_Link ga_Link;
+typedef struct ga_Link {
+  ga_Link* next;
+  ga_Link* prev;
+  void* data;
+} ga_Link;
+
+void ga_list_head(ga_Link* in_head);
+void ga_list_link(ga_Link* in_head, ga_Link* in_link, void* in_data);
+void ga_list_unlink(ga_Link* in_link);
+
+/*
+  Gorilla System
+*/
+typedef struct ga_SystemOps {
+  void* (*allocFunc)(ga_uint32 in_size);
+  void (*freeFunc)(void* in_ptr);
+} ga_SystemOps;
+extern ga_SystemOps* gaX_cb;
+
+ga_result ga_initialize(ga_SystemOps* in_callbacks);
+ga_result ga_shutdown();
 
 /*
   Gorilla Audio Format
@@ -108,20 +122,6 @@ ga_int32 ga_sound_numSamples(ga_Sound* in_sound);
 ga_result ga_sound_destroy(ga_Sound* in_sound);
 
 /*
-Gorilla Linked List
-*/
-typedef struct ga_Link ga_Link;
-typedef struct ga_Link {
-  ga_Link* next;
-  ga_Link* prev;
-  void* data;
-} ga_Link;
-
-void ga_list_head(ga_Link* in_head);
-void ga_list_link(ga_Link* in_head, ga_Link* in_link, void* in_data);
-void ga_list_unlink(ga_Link* in_link);
-
-/*
   Gorilla Handle
 */
 #define GA_HANDLE_PARAM_UNKNOWN 0
@@ -154,7 +154,6 @@ typedef void (*ga_FinishCallback)(ga_Handle*, void*);
   ga_float32 envGainB; \
   ga_int32 loopStart; \
   ga_int32 loopEnd; \
-  ga_int32 nextSample; \
   ga_Link dispatchLink; \
   ga_Link mixLink; \
   ga_Link streamLink; \
@@ -181,6 +180,7 @@ typedef void (*ga_StreamDestroyFunc)(ga_HandleStream* in_handle);
 typedef struct ga_HandleStatic {
   GA_HANDLE_HEADER
   ga_Sound* sound;
+  ga_int32 nextSample;
 } ga_HandleStatic;
 
 typedef struct ga_HandleStream {
@@ -193,6 +193,7 @@ typedef struct ga_HandleStream {
   ga_int32 group;
   ga_CircBuffer* buffer;
   ga_Format format;
+  ga_Mutex* consumeMutex;
 } ga_HandleStream;
 
 ga_Handle* ga_handle_create(ga_Mixer* in_mixer, ga_Sound* in_sound);
