@@ -1,0 +1,15 @@
+ROAD MAP
+---
+
+0.1 TODO:
+- API versioning
+- Accurate seek/tell (currently is hugely broken)
+- Stream-synchronization
+- Add support for mono/8-bit mixer formats
+- Fix broken pitch mixing
+- Mixer-side enveloping
+- Handle-locking for atomic groups of control commands
+- Improve error-handling
+- Port to Linux and Mac
+- DirectSound device
+- Doxygen API documentation
