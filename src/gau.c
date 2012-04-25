@@ -6,6 +6,52 @@
 #include <stdlib.h>
 #include <string.h>
 
+/* Sound File-Loading Functions */
+ga_Sound* gauX_sound_file_wav(const char* in_filename, ga_uint32 in_byteOffset)
+{
+  ga_Sound* ret;
+  FILE* f;
+  ga_WavData wavData;
+  char* data;
+  ga_Format format;
+  ga_int32 validHdr = gaX_sound_load_wav_header(in_filename, in_byteOffset, &wavData);
+  if(validHdr != GA_SUCCESS)
+    return 0;
+  f = fopen(in_filename, "rb");
+  if(!f)
+    return 0;
+  data = gaX_cb->allocFunc(wavData.dataSize);
+  fseek(f, wavData.dataOffset, SEEK_SET);
+  fread(data, 1, wavData.dataSize, f);
+  fclose(f);
+  format.bitsPerSample = wavData.bitsPerSample;
+  format.numChannels = wavData.channels;
+  format.sampleRate = wavData.sampleRate;
+  ret = ga_sound_create(data, wavData.dataSize, &format, 0);
+  if(!ret)
+    gaX_cb->freeFunc(data);
+  return ret;
+}
+ga_Sound* gauX_sound_file_ogg(const char* in_filename, ga_uint32 in_byteOffset)
+{
+  /* TODO! */
+  return 0;
+}
+ga_Sound* gau_sound_file(const char* in_filename, ga_int32 in_fileFormat,
+                        ga_uint32 in_byteOffset)
+{
+  switch(in_fileFormat)
+  {
+  case GA_FILE_FORMAT_WAV:
+    return (ga_Sound*)gauX_sound_file_wav(in_filename, in_byteOffset);
+
+  case GA_FILE_FORMAT_OGG:
+    return (ga_Sound*)gauX_sound_file_ogg(in_filename, in_byteOffset);
+  }
+  return 0;
+}
+
+/* Streaming Functions */
 typedef struct ga_StreamContext_File {
   char* filename;
   ga_int32 fileFormat;

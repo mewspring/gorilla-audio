@@ -44,7 +44,7 @@ int main(int argc, char** argv)
   mixer = ga_mixer_create(&fmt, numSamples);
 
   /* Load and play static sound */
-  sound = ga_sound_load("test.wav", GA_FILE_FORMAT_WAV, 0);
+  sound = gau_sound_file("test.wav", GA_FILE_FORMAT_WAV, 0);
   handle = ga_handle_create(mixer, sound);
   ga_handle_setCallback(handle, &exampleOnFinish, 0);
   ga_handle_play(handle);
@@ -62,8 +62,9 @@ int main(int argc, char** argv)
     printf("%d / %d\n", ga_handle_tell(handle, GA_TELL_PARAM_CURRENT), ga_handle_tell(handle, GA_TELL_PARAM_TOTAL));
   }
 
-  /* Clean up mixer/device/library */
+  /* Clean up sound/mixer/device/library */
   free(mixBuffer);
+  ga_sound_destroy(sound);
   ga_mixer_destroy(mixer);
   ga_device_close(dev);
   ga_shutdown();

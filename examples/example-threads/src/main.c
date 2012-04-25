@@ -102,7 +102,7 @@ int main(int argc, char** argv)
   ga_thread_run(streamThread);
 
   /* Load static sound */
-  sound = ga_sound_load("test1.wav", GA_FILE_FORMAT_WAV, 0);
+  sound = gau_sound_file("test1.wav", GA_FILE_FORMAT_WAV, 0);
 
   /* Create and play streaming sound */
   stream = gau_stream_file(mixer, 0, 131072, "test2.wav", GA_FILE_FORMAT_WAV, 0);
@@ -117,10 +117,11 @@ int main(int argc, char** argv)
     while(!context.kill)
     {
       ga_mixer_dispatch(mixer);
-      if(count % 200 == 0)
+      if(count == 0)
       {
         handle = ga_handle_create(mixer, sound);
         ga_handle_setCallback(handle, &exampleOnFinish, (void*)(count / 200));
+        ga_handle_setParami(handle, GA_HANDLE_PARAM_LOOP, 1);
         ga_handle_play(handle);
       }
       ++count;
@@ -137,7 +138,8 @@ int main(int argc, char** argv)
     }
   }
 
-  /* Clean up mixer/device/library */
+  /* Clean up sound/mixer/device/library */
+  ga_sound_destroy(sound);
   ga_mixer_destroy(mixer);
   ga_device_close(dev);
   ga_shutdown();

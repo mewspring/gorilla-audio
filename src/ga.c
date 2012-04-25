@@ -107,49 +107,22 @@ ga_result ga_device_queue(ga_Device* in_device,
 }
 
 /* Sound Functions */
-ga_result gaX_sound_load_wav(ga_Sound* in_ret, const char* in_filename, ga_uint32 in_byteOffset);
-ga_result gaX_sound_load_ogg(ga_Sound* in_ret, const char* in_filename, ga_uint32 in_byteOffset);
-ga_Sound* ga_sound_load(const char* in_filename, ga_int32 in_fileFormat,
-                        ga_uint32 in_byteOffset)
-{
-  ga_Sound* ret = gaX_cb->allocFunc(sizeof(ga_Sound));
-  ret->data = 0;
-  ret->isCopy = 1;
-  switch(in_fileFormat)
-  {
-  case GA_FILE_FORMAT_WAV:
-    if(gaX_sound_load_wav(ret, in_filename, in_byteOffset) != GA_SUCCESS)
-    {
-      gaX_cb->freeFunc(ret);
-      return 0;
-    }
-    ret->loopStart = 0;
-    ret->loopEnd = -1;
-    return (ga_Sound*)ret;
-
-  case GA_FILE_FORMAT_OGG:
-    if(gaX_sound_load_ogg(ret, in_filename, in_byteOffset) != GA_SUCCESS)
-    {
-      gaX_cb->freeFunc(ret);
-      return 0;
-    }
-    return ret;
-  }
-  return 0;
-}
-ga_Sound* ga_sound_assign(void* in_buffer, ga_int32 in_size,
+ga_Sound* ga_sound_create(void* in_data, ga_int32 in_size,
                           ga_Format* in_format, ga_int32 in_copy)
 {
   ga_Sound* ret = gaX_cb->allocFunc(sizeof(ga_Sound));
   ret->isCopy = in_copy;
   ret->size = in_size;
+  ret->loopStart = 0;
+  ret->loopEnd = -1;
+  ret->numSamples = in_size / ga_format_sampleSize(in_format);
   if(in_copy)
   {
     ret->data = gaX_cb->allocFunc(in_size);
-    memcpy(ret->data, in_buffer, in_size);
+    memcpy(ret->data, in_data, in_size);
   }
   else
-    ret->data = in_buffer;
+    ret->data = in_data;
   memcpy(&ret->format, in_format, sizeof(ga_Format));
   return (ga_Sound*)ret;
 }
@@ -170,32 +143,6 @@ ga_result ga_sound_destroy(ga_Sound* in_sound)
     gaX_cb->freeFunc(in_sound->data);
   gaX_cb->freeFunc(in_sound);
   return GA_SUCCESS;
-}
-
-/* Sound File-Loading Functions */
-ga_result gaX_sound_load_wav(ga_Sound* in_ret, const char* in_filename, ga_uint32 in_byteOffset)
-{
-  FILE* f;
-  ga_WavData wavData;
-  ga_int32 validHdr = gaX_sound_load_wav_header(in_filename, in_byteOffset, &wavData);
-  if(validHdr != GA_SUCCESS)
-    return GA_ERROR_GENERIC;
-  f = fopen(in_filename, "rb");
-  if(!f)
-    return GA_ERROR_GENERIC;
-  in_ret->size = wavData.dataSize;
-  in_ret->format.bitsPerSample = wavData.bitsPerSample;
-  in_ret->format.numChannels = wavData.channels;
-  in_ret->format.sampleRate = wavData.sampleRate;
-  in_ret->data = gaX_cb->allocFunc(in_ret->size);
-  fseek(f, wavData.dataOffset, SEEK_SET);
-  fread(in_ret->data, 1, wavData.dataSize, f);
-  return GA_SUCCESS;
-}
-ga_result gaX_sound_load_ogg(ga_Sound* in_ret, const char* in_filename, ga_uint32 in_byteOffset)
-{
-  /* TODO! */
-  return GA_ERROR_GENERIC;
 }
 
 /* List Functions */
@@ -554,7 +501,7 @@ ga_int32 gaX_mixer_mix_buffer(ga_Mixer* in_mixer, ga_Handle* in_handle,
       break;
     }
   }
-  return i > j ? i : j;
+  return i > j ? i : j; /* TODO: This is incorrect. Needs to be fixed to get pitch working. */
 }
 
 void gaX_mixer_mix_static(ga_Mixer* in_mixer, ga_HandleStatic* in_handle)
@@ -574,7 +521,7 @@ void gaX_mixer_mix_static(ga_Mixer* in_mixer, ga_HandleStatic* in_handle)
     ga_int32 endSample = (h->loop && h->loopEnd >= 0) ? h->loopEnd : numSrcSamples;
     ga_int32 numToMix = numSrcSamples - h->nextSample;
     numToMix = numToMix > dstSamples ? dstSamples : numToMix;
-    if(numToMix > 0)
+    while(numToMix > 0)
     {
       gaX_mixer_mix_buffer(in_mixer, (ga_Handle*)in_handle,
                            (char*)s->data + h->nextSample * srcSampleSize,
@@ -582,11 +529,16 @@ void gaX_mixer_mix_static(ga_Mixer* in_mixer, ga_HandleStatic* in_handle)
                            dstBuffer, dstSamples);
       h->nextSample += numToMix;
       dstSamples -= numToMix;
-      dstBuffer += numToMix * dstSampleSize;
+      dstBuffer += numToMix * m->mixFormat.numChannels;
+      numToMix = 0;
       if(h->nextSample == numSrcSamples)
       {
         if(h->loop)
+        {
           h->nextSample = s->loopStart;
+          numToMix = numSrcSamples - h->nextSample;
+          numToMix = numToMix > dstSamples ? dstSamples : numToMix;
+        }
         else
         {
           /*ga_mutex_lock(h->handleMutex);*/
@@ -594,8 +546,6 @@ void gaX_mixer_mix_static(ga_Mixer* in_mixer, ga_HandleStatic* in_handle)
             h->state = GA_HANDLE_STATE_FINISHED;
           /*ga_mutex_unlock(h->handleMutex);*/
         }
-        numToMix = numSrcSamples - h->nextSample;
-        numToMix = numToMix > dstSamples ? dstSamples : numToMix;
       }
     }
   }

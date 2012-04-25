@@ -100,13 +100,7 @@ typedef struct ga_Sound {
   ga_int32 numSamples;
 } ga_Sound;
 
-#define GA_FILE_FORMAT_UNKNOWN 0
-#define GA_FILE_FORMAT_WAV 1
-#define GA_FILE_FORMAT_OGG 2
-
-ga_Sound* ga_sound_load(const char* in_filename, ga_int32 in_fileFormat,
-                        ga_uint32 in_byteOffset);
-ga_Sound* ga_sound_assign(void* in_buffer, ga_int32 in_size,
+ga_Sound* ga_sound_create(void* in_data, ga_int32 in_size,
                           ga_Format* in_format, ga_int32 in_copy);
 ga_result ga_sound_setLoops(ga_Sound* in_sound,
                             ga_int32 in_loopStart, ga_int32 in_loopEnd);
