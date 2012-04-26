@@ -169,6 +169,7 @@ typedef struct ga_HandleStream ga_HandleStream;
 #define GA_TELL_PARAM_TOTAL 1
 
 typedef void (*ga_StreamProduceFunc)(ga_HandleStream* in_handle);
+typedef void (*ga_StreamConsumeFunc)(ga_HandleStream* in_handle, ga_int32 in_samplesConsumed);
 typedef void (*ga_StreamSeekFunc)(ga_HandleStream* in_handle, ga_int32 in_sampleOffset);
 typedef ga_int32 (*ga_StreamTellFunc)(ga_HandleStream* in_handle, ga_int32 in_param);
 typedef void (*ga_StreamDestroyFunc)(ga_HandleStream* in_handle);
@@ -186,6 +187,7 @@ typedef struct ga_HandleStatic {
 typedef struct ga_HandleStream {
   GA_HANDLE_HEADER
   ga_StreamProduceFunc produceFunc;
+  ga_StreamConsumeFunc consumeFunc;
   ga_StreamSeekFunc seekFunc;
   ga_StreamTellFunc tellFunc;
   ga_StreamDestroyFunc destroyFunc;
@@ -202,6 +204,7 @@ ga_Handle* ga_handle_createStream(ga_Mixer* in_mixer,
                                   ga_int32 in_bufferSize,
                                   ga_Format* in_format,
                                   ga_StreamProduceFunc in_produceFunc,
+                                  ga_StreamConsumeFunc in_consumeFunc,
                                   ga_StreamSeekFunc in_seekFunc,
                                   ga_StreamTellFunc in_tellFunc,
                                   ga_StreamDestroyFunc in_destroyFunc,
@@ -214,6 +217,8 @@ ga_int32 ga_handle_destroyed(ga_Handle* in_handle);
 ga_result ga_handle_setCallback(ga_Handle* in_handle,
                                 ga_FinishCallback in_callback,
                                 void* in_context);
+ga_result ga_handle_setLoops(ga_Handle* in_handle,
+                             ga_int32 in_loopStart, ga_int32 in_loopEnd);
 ga_result ga_handle_setParamf(ga_Handle* in_handle, ga_int32 in_param,
                               ga_float32 in_value);
 ga_result ga_handle_getParamf(ga_Handle* in_handle, ga_int32 in_param,

@@ -62,6 +62,7 @@ typedef struct ga_StreamContext_File {
   ga_Mutex* seekMutex;
   ga_int32 seek;
   ga_int32 tell;
+  ga_Link tellJumps;
   /* WAV-Specific Data */
   union {
     struct {
@@ -71,6 +72,7 @@ typedef struct ga_StreamContext_File {
 } ga_StreamContext_File;
 
 void gauX_sound_stream_file_produce(ga_HandleStream* in_stream);
+void gauX_sound_stream_file_consume(ga_HandleStream* in_handle, ga_int32 in_samplesConsumed);
 void gauX_sound_stream_file_seek(ga_HandleStream* in_handle, ga_int32 in_sampleOffset);
 ga_int32 gauX_sound_stream_file_tell(ga_HandleStream* in_handle, ga_int32 in_param);
 void gauX_sound_stream_file_destroy(ga_HandleStream* in_stream);
@@ -106,11 +108,13 @@ ga_Handle* gau_stream_file(ga_Mixer* in_mixer,
     fmt.numChannels = context->wav.wavData.channels;
     fmt.sampleRate = context->wav.wavData.sampleRate;
     context->seekMutex = ga_mutex_create();
+    ga_list_head(&context->tellJumps);
     return ga_handle_createStream(in_mixer,
                                   in_group,
                                   in_bufferSize,
                                   &fmt,
                                   &gauX_sound_stream_file_produce,
+                                  &gauX_sound_stream_file_consume,
                                   &gauX_sound_stream_file_seek,
                                   &gauX_sound_stream_file_tell,
                                   &gauX_sound_stream_file_destroy,
@@ -143,6 +147,67 @@ void gauX_buffer_read_into_buffers(ga_CircBuffer* in_buffer, ga_int32 in_bytes,
   }
   b->nextFree += in_bytes;
 }
+
+typedef struct ga_TellJumpData {
+  ga_int32 pos;
+  ga_int32 delta;
+} ga_TellJumpData;
+
+typedef struct ga_TellJumpLink {
+  ga_Link link;
+  ga_TellJumpData data;
+} ga_TellJumpLink;
+
+void gauX_sound_stream_pushTellJump(ga_Link* in_head, ga_int32 in_pos, ga_int32 in_delta)
+{
+  ga_TellJumpLink* link = gaX_cb->allocFunc(sizeof(ga_TellJumpLink));
+  link->link.data = &link->data;
+  link->data.pos = in_pos;
+  link->data.delta = in_delta;
+  ga_list_link(in_head->prev, (ga_Link*)link, &link->data);
+}
+ga_int32 gauX_sound_stream_peekTellJump(ga_Link* in_head, ga_int32* out_pos, ga_int32* out_delta)
+{
+  ga_TellJumpLink* link;
+  if(in_head->next == in_head)
+    return 0;
+  link = (ga_TellJumpLink*)in_head->next;
+  *out_pos = link->data.pos;
+  *out_delta = link->data.delta;
+  return 1;
+}
+ga_int32 gauX_sound_stream_popTellJump(ga_Link* in_head)
+{
+  ga_TellJumpLink* link;
+  if(in_head->next == in_head)
+    return 0;
+  link = (ga_TellJumpLink*)in_head->next;
+  ga_list_unlink((ga_Link*)link);
+  gaX_cb->freeFunc(link);
+  return 1;
+}
+ga_int32 gauX_sound_stream_processTellJumps(ga_Link* in_head, ga_int32 in_advance)
+{
+  ga_int32 ret = 0;
+  ga_TellJumpLink* link = (ga_TellJumpLink*)in_head->next;
+  while((ga_Link*)link != in_head)
+  {
+    ga_TellJumpLink* oldLink = link;
+    link = (ga_TellJumpLink*)link->link.next;
+    oldLink->data.pos -= in_advance;
+    if(oldLink->data.pos <= 0)
+    {
+      ret += oldLink->data.delta;
+      ga_list_unlink((ga_Link*)oldLink);
+    }
+  }
+  return ret;
+}
+void gauX_sound_stream_clearTellJumps(ga_Link* in_head)
+{
+  while(gauX_sound_stream_popTellJump(in_head));
+}
+
 void gauX_sound_stream_file_produce(ga_HandleStream* in_handle)
 {
   ga_StreamContext_File* context = (ga_StreamContext_File*)in_handle->streamContext;
@@ -160,41 +225,48 @@ void gauX_sound_stream_file_produce(ga_HandleStream* in_handle)
   loopStart = h->loopStart;
   loopEnd = h->loopEnd;
   ga_mutex_unlock(h->handleMutex);
-  loopEnd = loopEnd < 0 ? totalSamples : loopEnd;
+  loopEnd = loopEnd >= 0 ? loopEnd : totalSamples;
 
   if(context->seek >= 0)
   {
     ga_int32 samplePos;
     ga_mutex_lock(h->consumeMutex);
     ga_mutex_lock(context->seekMutex);
-    samplePos = context->seek;
-    samplePos = samplePos > totalSamples ? 0 : samplePos;
-    context->tell = samplePos;
-    context->seek = -1;
-    context->nextSample = samplePos;
-    fseek(context->file, context->wav.wavData.dataOffset + samplePos * sampleSize, SEEK_SET);
-    ga_buffer_consume(h->buffer, ga_buffer_bytesAvail(h->buffer)); /* Clear buffer */
+    if(context->seek >= 0) /* Check again now that we're mutexed */
+    {
+      samplePos = context->seek;
+      samplePos = samplePos > totalSamples ? 0 : samplePos;
+      context->tell = samplePos;
+      context->seek = -1;
+      context->nextSample = samplePos;
+      fseek(context->file, context->wav.wavData.dataOffset + samplePos * sampleSize, SEEK_SET);
+      ga_buffer_consume(h->buffer, ga_buffer_bytesAvail(h->buffer)); /* Clear buffer */
+    }
+    gauX_sound_stream_clearTellJumps(&context->tellJumps); /* Clear tell-jump list */
     ga_mutex_unlock(context->seekMutex);
     ga_mutex_unlock(h->consumeMutex);
-
-    /* TODO: Clear tell-jump list */
   }
 
   while(bytesFree)
   {
-    ga_int32 endSample = (loop && context->nextSample < loopEnd) ? loopEnd : totalSamples;
+    ga_int32 endSample = (loop && loopEnd > context->nextSample) ? loopEnd : totalSamples;
     ga_int32 bytesToWrite = (endSample - context->nextSample) * sampleSize;
     bytesToWrite = bytesToWrite > bytesFree ? bytesFree : bytesToWrite;
     gauX_buffer_read_into_buffers(b, bytesToWrite, context->file);
     bytesFree -= bytesToWrite;
     context->nextSample += bytesToWrite / sampleSize;
-    if(context->nextSample >= endSample)
+    if(context->nextSample == endSample)
     {
       if(loop)
       {
         fseek(context->file, context->wav.wavData.dataOffset + loopStart * sampleSize, SEEK_SET);
+        ga_mutex_unlock(h->consumeMutex);
+        ga_mutex_lock(context->seekMutex);
+        /* Add tell jump */
+        gauX_sound_stream_pushTellJump(&context->tellJumps, ga_buffer_bytesAvail(h->buffer) / sampleSize, loopStart - context->nextSample);
+        ga_mutex_unlock(context->seekMutex);
+        ga_mutex_unlock(h->consumeMutex);
         context->nextSample = loopStart;
-        /* TODO: Add tell jump */
       }
       else
       {
@@ -204,12 +276,16 @@ void gauX_sound_stream_file_produce(ga_HandleStream* in_handle)
     }
   }
 }
-void gauX_sound_stream_file_consume(ga_HandleStream* in_handle, ga_int32 in_samples)
+void gauX_sound_stream_file_consume(ga_HandleStream* in_handle, ga_int32 in_samplesConsumed)
 {
   ga_HandleStream* h = in_handle;
   ga_StreamContext_File* context = (ga_StreamContext_File*)h->streamContext;
-  context->tell += in_samples;
-  /* TODO: Check tell jumps */
+  ga_int32 delta;
+  ga_mutex_lock(context->seekMutex);
+  context->tell += in_samplesConsumed;
+  delta = gauX_sound_stream_processTellJumps(&context->tellJumps, in_samplesConsumed);
+  context->tell += delta;
+  ga_mutex_unlock(context->seekMutex);
 }
 void gauX_sound_stream_file_seek(ga_HandleStream* in_handle, ga_int32 in_sampleOffset)
 {
@@ -224,15 +300,24 @@ ga_int32 gauX_sound_stream_file_tell(ga_HandleStream* in_handle, ga_int32 in_par
   ga_HandleStream* h = in_handle;
   ga_StreamContext_File* context = (ga_StreamContext_File*)h->streamContext;
   ga_int32 ret;
-  ga_mutex_lock(context->seekMutex);
-  ret = context->seek >= 0 ? context->seek : context->tell;
-  ga_mutex_unlock(context->seekMutex);
+  if(in_param == GA_TELL_PARAM_TOTAL)
+  {
+    ga_int32 sampleSize = ga_format_sampleSize(&in_handle->format);
+    return context->wav.wavData.dataSize / sampleSize;
+  }
+  else
+  {
+    ga_mutex_lock(context->seekMutex);
+    ret = context->seek >= 0 ? context->seek : context->tell;
+    ga_mutex_unlock(context->seekMutex);
+  }
   return ret;
 }
 void gauX_sound_stream_file_destroy(ga_HandleStream* in_handle)
 {
   ga_StreamContext_File* context = (ga_StreamContext_File*)in_handle->streamContext;
   ga_mutex_destroy(context->seekMutex);
+  gauX_sound_stream_clearTellJumps(&context->tellJumps);
   fclose(context->file);
   gaX_cb->freeFunc(context->filename);
 }

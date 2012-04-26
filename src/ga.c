@@ -216,6 +216,7 @@ ga_Handle* ga_handle_createStream(ga_Mixer* in_mixer,
                                   ga_int32 in_bufferSize,
                                   ga_Format* in_format,
                                   ga_StreamProduceFunc in_produceFunc,
+                                  ga_StreamConsumeFunc in_consumeFunc,
                                   ga_StreamSeekFunc in_seekFunc,
                                   ga_StreamTellFunc in_tellFunc,
                                   ga_StreamDestroyFunc in_destroyFunc,
@@ -233,6 +234,7 @@ ga_Handle* ga_handle_createStream(ga_Mixer* in_mixer,
   hs->buffer = cb;
   hs->group = in_group;
   hs->produceFunc = in_produceFunc;
+  hs->consumeFunc = in_consumeFunc;
   hs->seekFunc = in_seekFunc;
   hs->tellFunc = in_tellFunc;
   hs->destroyFunc = in_destroyFunc;
@@ -328,6 +330,16 @@ ga_result ga_handle_setCallback(ga_Handle* in_handle, ga_FinishCallback in_callb
   /* Does not need mutex because it can only be called from the dispatch thread */
   in_handle->callback = in_callback;
   in_handle->context = in_context;
+  return GA_SUCCESS;
+}
+ga_result ga_handle_setLoops(ga_Handle* in_handle,
+                             ga_int32 in_loopStart, ga_int32 in_loopEnd)
+{
+  ga_Handle* h = in_handle;
+  ga_mutex_lock(h->handleMutex);
+  h->loopStart = in_loopStart;
+  h->loopEnd = in_loopEnd;
+  ga_mutex_unlock(h->handleMutex);
   return GA_SUCCESS;
 }
 ga_result ga_handle_setParamf(ga_Handle* in_handle, ga_int32 in_param,
@@ -587,10 +599,10 @@ void gaX_mixer_mix_static(ga_Mixer* in_mixer, ga_HandleStatic* in_handle)
     ga_int32* dstBuffer = &m->mixBuffer[0];
     ga_int32 dstSamples = m->numSamples;
 
-    numToMix = numSrcSamples - nextSample;
-
     /* Mix */
-    endSample = (loop && loopEnd >= 0) ? loopEnd : numSrcSamples;
+    loopEnd = loopEnd >= 0 ? loopEnd : numSrcSamples;
+    endSample = (loop && loopEnd > nextSample) ? loopEnd : numSrcSamples;
+    numToMix = endSample - nextSample;
     numToMix = numToMix > dstSamples ? dstSamples : numToMix;
     while(numToMix > 0)
     {
@@ -602,12 +614,12 @@ void gaX_mixer_mix_static(ga_Mixer* in_mixer, ga_HandleStatic* in_handle)
       dstSamples -= numToMix;
       dstBuffer += numToMix * m->mixFormat.numChannels;
       numToMix = 0;
-      if(nextSample == numSrcSamples)
+      if(nextSample == endSample)
       {
         if(loop)
         {
-          nextSample = s->loopStart;
-          numToMix = numSrcSamples - nextSample;
+          nextSample = loopStart;
+          numToMix = loopEnd - nextSample;
           numToMix = numToMix > dstSamples ? dstSamples : numToMix;
         }
         else
@@ -689,6 +701,8 @@ void gaX_mixer_mix_streaming(ga_Mixer* in_mixer, ga_HandleStream* in_handle, ga_
           }
         }
         ga_buffer_consume(h->buffer, bytesToMix);
+        if(h->consumeFunc)
+          h->consumeFunc(h, numToMix);
       }
       ga_mutex_unlock(h->consumeMutex);
     }
