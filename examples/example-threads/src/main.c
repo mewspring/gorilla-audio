@@ -38,7 +38,7 @@ static ga_int32 mixThreadFunc(void* in_context)
       ga_mixer_mix(m, buf);
       ga_device_queue(context->device, context->format, m->numSamples, buf);
     }
-    ga_thread_sleep(5);
+    ga_thread_sleep(25);
   }
   free(buf);
   printf("Mixer thread terminated.\n");
@@ -53,7 +53,7 @@ static ga_int32 streamThreadFunc(void* in_context)
   while(!context->kill)
   {
     ga_mixer_stream(m);
-    ga_thread_sleep(16);
+    ga_thread_sleep(50);
   }
   printf("Stream thread terminated.\n");
   return 0;
@@ -133,7 +133,7 @@ int main(int argc, char** argv)
         ga_thread_join(streamThread);
         break;
       }
-
+      printf("%d / %d\n", ga_handle_tell(stream, GA_TELL_PARAM_CURRENT), ga_handle_tell(stream, GA_TELL_PARAM_TOTAL));
       ga_thread_sleep(1);
     }
   }
