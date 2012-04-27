@@ -7,6 +7,8 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "vorbis/vorbisfile.h"
+
 /* Sound File-Loading Functions */
 ga_Sound* gauX_sound_file_wav(const char* in_filename, ga_uint32 in_byteOffset)
 {
@@ -35,8 +37,55 @@ ga_Sound* gauX_sound_file_wav(const char* in_filename, ga_uint32 in_byteOffset)
 }
 ga_Sound* gauX_sound_file_ogg(const char* in_filename, ga_uint32 in_byteOffset)
 {
-  /* TODO! */
-  return 0;
+  ga_Sound* ret = 0;
+  ga_int32 endian = 0; // 0 is little endian (aka x86), 1 is big endian
+  ga_int32 bytesPerSample = 2;
+  ga_int32 totalBytes = 0;
+  char* data = 0;
+  ga_Format format;
+  vorbis_info* oggInfo;
+  OggVorbis_File oggFile;
+  ga_int32 validFile;
+  ga_int32 retVal = 0;
+  /* TODO: Should use ov_open_callbacks() on Win32, and check endianness */
+  FILE* rawFile = fopen(in_filename, "rb");
+  retVal = ov_open(rawFile, &oggFile, 0, 0);
+  oggInfo = ov_info(&oggFile, -1);
+  ov_pcm_seek(&oggFile, 0); /* Seek fixes some poorly-formatted oggs. */
+  validFile = oggInfo->channels <= 2;
+  if(validFile)
+  {
+    ga_int32 bufferSize = 128 * 1024;
+    ga_uint32 numBytesRead;
+    format.bitsPerSample = bytesPerSample * 8;
+    format.numChannels = oggInfo->channels;
+    format.sampleRate = oggInfo->rate;
+    do{
+      int bitStream;
+      ga_float32** samples;
+      ga_int32 i;
+      ga_int16* dst;
+      ga_int32 samplesRead = ov_read_float(&oggFile, &samples, bufferSize, &bitStream);
+      numBytesRead = samplesRead * oggInfo->channels * 2;
+      data = gaX_cb->reallocFunc(data, totalBytes + numBytesRead);
+      dst = (ga_int16*)(data + totalBytes);
+      totalBytes += numBytesRead;
+      for(i = 0; i < samplesRead; ++i)
+      {
+        ga_int32 channel;
+        for(channel = 0; channel < oggInfo->channels; ++channel, ++dst)
+          *dst = (ga_int16)(samples[channel][i] * 32768.0f);
+      }
+    } while (numBytesRead > 0);
+  }
+  ov_clear(&oggFile);
+  if(validFile)
+  {
+    ret = ga_sound_create(data, totalBytes, &format, 0);
+    if(!ret)
+      gaX_cb->freeFunc(data);
+  }
+  return ret;
 }
 ga_Sound* gau_sound_file(const char* in_filename, ga_int32 in_fileFormat,
                         ga_uint32 in_byteOffset)

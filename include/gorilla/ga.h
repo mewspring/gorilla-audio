@@ -60,6 +60,7 @@ void ga_list_unlink(ga_Link* in_link);
 */
 typedef struct ga_SystemOps {
   void* (*allocFunc)(ga_uint32 in_size);
+  void* (*reallocFunc)(void* in_ptr, ga_uint32 in_size);
   void (*freeFunc)(void* in_ptr);
 } ga_SystemOps;
 extern ga_SystemOps* gaX_cb;

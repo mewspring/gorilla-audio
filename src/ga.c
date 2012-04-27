@@ -15,6 +15,10 @@ static void* gaX_defaultAllocFunc(ga_uint32 in_size)
 {
   return malloc(in_size);
 }
+static void* gaX_defaultReallocFunc(void* in_ptr, ga_uint32 in_size)
+{
+  return realloc(in_ptr, in_size);
+}
 static void gaX_defaultFreeFunc(void* in_ptr)
 {
   free(in_ptr);
@@ -23,6 +27,7 @@ static ga_SystemOps s_defaultCallbacks;
 ga_result ga_initialize(ga_SystemOps* in_callbacks)
 {
   s_defaultCallbacks.allocFunc = &gaX_defaultAllocFunc;
+  s_defaultCallbacks.reallocFunc = &gaX_defaultReallocFunc;
   s_defaultCallbacks.freeFunc = &gaX_defaultFreeFunc;
   gaX_cb = in_callbacks ? in_callbacks : &s_defaultCallbacks;
   return GA_SUCCESS;
@@ -188,7 +193,6 @@ void gaX_handle_init(ga_Handle* in_handle, ga_Mixer* in_mixer)
 
 ga_Handle* ga_handle_create(ga_Mixer* in_mixer, ga_Sound* in_sound)
 {
-
   ga_HandleStatic* hs = (ga_HandleStatic*)gaX_cb->allocFunc(sizeof(ga_HandleStatic));
   ga_Handle* h = (ga_Handle*)hs;
   h->handleType = GA_HANDLE_TYPE_STATIC;
