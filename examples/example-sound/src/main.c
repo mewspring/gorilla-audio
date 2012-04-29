@@ -29,7 +29,7 @@ int main(int argc, char** argv)
   ga_initialize(0);
 
   /* Initialize device */
-  dev = ga_device_open(GA_DEVICE_TYPE_OPENAL);
+  dev = ga_device_open(GA_DEVICE_TYPE_OPENAL, 2);
   if(!dev)
     return 1;
 

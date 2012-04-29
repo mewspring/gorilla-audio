@@ -32,14 +32,15 @@ static ga_int32 AUDIO_ERROR = 0;
   if((AUDIO_ERROR = alGetError()) != AL_NO_ERROR) \
     printf("%s\n", gaX_openAlErrorToString(AUDIO_ERROR));
 
-ga_DeviceImpl_OpenAl* gaX_device_open_openAl()
+ga_DeviceImpl_OpenAl* gaX_device_open_openAl(ga_int32 in_numBuffers)
 {
   ga_DeviceImpl_OpenAl* ret = gaX_cb->allocFunc(sizeof(ga_DeviceImpl_OpenAl));
   ALCboolean ctxRet;
 
   ret->devType = GA_DEVICE_TYPE_OPENAL;
   ret->nextBuffer = 0;
-  ret->emptyBuffers = 2;
+  ret->numBuffers = in_numBuffers;
+  ret->emptyBuffers = ret->numBuffers;
 #ifdef _WIN32
   ret->dev = alcOpenDevice("DirectSound");
 #else
@@ -58,7 +59,8 @@ ga_DeviceImpl_OpenAl* gaX_device_open_openAl()
   CHECK_AL_ERROR;
   if(AUDIO_ERROR != AL_NO_ERROR)
     goto cleanup;
-  alGenBuffers(2, &ret->hwBuffers[0]);
+  ret->hwBuffers = gaX_cb->allocFunc(sizeof(ga_uint32) * ret->numBuffers);
+  alGenBuffers(ret->numBuffers, ret->hwBuffers);
   CHECK_AL_ERROR;
   if(AUDIO_ERROR != AL_NO_ERROR)
     goto cleanup;
@@ -66,12 +68,14 @@ ga_DeviceImpl_OpenAl* gaX_device_open_openAl()
   CHECK_AL_ERROR;
   if(AUDIO_ERROR != AL_NO_ERROR)
   {
-    alDeleteBuffers(2, &ret->hwBuffers[0]);
+    alDeleteBuffers(ret->numBuffers, ret->hwBuffers);
     goto cleanup;
   }
   return ret;
 
 cleanup:
+  if(ret->hwBuffers)
+    gaX_cb->freeFunc(ret->hwBuffers);
   if(ret->context)
     alcDestroyContext(ret->context);
   if(ret->dev)
@@ -81,8 +85,12 @@ cleanup:
 }
 ga_result gaX_device_close_openAl(ga_DeviceImpl_OpenAl* in_dev)
 {
+  alDeleteSources(1, &in_dev->hwSource);
+  alDeleteBuffers(in_dev->numBuffers, in_dev->hwBuffers);
+  alcDestroyContext(in_dev->context);
   alcCloseDevice(in_dev->dev);
   in_dev->devType = GA_DEVICE_TYPE_UNKNOWN;
+  gaX_cb->freeFunc(in_dev->hwBuffers);
   gaX_cb->freeFunc(in_dev);
   return GA_SUCCESS;
 }
@@ -95,7 +103,7 @@ ga_int32 gaX_device_check_openAl(ga_DeviceImpl_OpenAl* in_device)
   CHECK_AL_ERROR;
   while(numProcessed--)
   {
-    whichBuf = (d->nextBuffer + d->emptyBuffers++) % 2;
+    whichBuf = (d->nextBuffer + d->emptyBuffers++) % d->numBuffers;
     alSourceUnqueueBuffers(d->hwSource, 1, &d->hwBuffers[whichBuf]);
     CHECK_AL_ERROR;
   }
@@ -126,7 +134,7 @@ ga_result gaX_device_queue_openAl(ga_DeviceImpl_OpenAl* in_device,
   CHECK_AL_ERROR;
   if(AUDIO_ERROR != AL_NO_ERROR)
     return GA_ERROR_GENERIC;
-  d->nextBuffer = (d->nextBuffer + 1) % 2;
+  d->nextBuffer = (d->nextBuffer + 1) % d->numBuffers;
   --d->emptyBuffers;
   alGetSourcei(d->hwSource, AL_SOURCE_STATE, &state);
   CHECK_AL_ERROR;

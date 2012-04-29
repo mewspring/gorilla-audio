@@ -54,12 +54,12 @@ ga_int32 ga_format_toSamples(ga_Format* in_format, ga_float32 in_seconds)
 }
 
 /* Device Functions */
-ga_Device* ga_device_open(int in_type)
+ga_Device* ga_device_open(int in_type, ga_int32 in_numBuffers)
 {
   if(in_type == GA_DEVICE_TYPE_OPENAL)
   {
 #ifdef LINK_AGAINST_OPENAL
-    return (ga_Device*)gaX_device_open_openAl();
+    return (ga_Device*)gaX_device_open_openAl(in_numBuffers);
 #else
     return 0;
 #endif /* LINK_AGAINST_OPENAL */

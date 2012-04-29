@@ -94,7 +94,7 @@ typedef struct ga_Device {
   GA_DEVICE_HEADER
 } ga_Device;
 
-ga_Device* ga_device_open(ga_int32 in_type);
+ga_Device* ga_device_open(ga_int32 in_type, ga_int32 in_numBuffers);
 ga_int32 ga_device_check(ga_Device* in_device);
 ga_result ga_device_queue(ga_Device* in_device,
                          ga_Format* in_format,

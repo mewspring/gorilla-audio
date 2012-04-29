@@ -16,13 +16,14 @@ typedef struct ga_DeviceImpl_OpenAl
   GA_DEVICE_HEADER
   ALCdevice* dev;
   ALCcontext* context;
-  ga_uint32 hwBuffers[2];
+  ga_uint32* hwBuffers;
   ga_uint32 hwSource;
   ga_uint32 nextBuffer;
   ga_uint32 emptyBuffers;
+  ga_int32 numBuffers;
 } ga_DeviceImpl_OpenAl;
 
-ga_DeviceImpl_OpenAl* gaX_device_open_openAl();
+ga_DeviceImpl_OpenAl* gaX_device_open_openAl(ga_int32 in_numBuffers);
 ga_int32 gaX_device_check_openAl(ga_DeviceImpl_OpenAl* in_device);
 ga_result gaX_device_queue_openAl(ga_DeviceImpl_OpenAl* in_device,
                                  ga_Format* in_format,

@@ -18,7 +18,7 @@ int main(int argc, char** argv)
   ga_float32 t = 0.0f;
 
   ga_initialize(0);
-  dev = ga_device_open(GA_DEVICE_TYPE_OPENAL);
+  dev = ga_device_open(GA_DEVICE_TYPE_OPENAL, 2);
   if(!dev)
     return 1;
 
