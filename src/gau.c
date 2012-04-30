@@ -49,7 +49,6 @@ int gauX_oggClose(void *datasource)
   return 1;
 }
 
-
 /* Sound File-Loading Functions */
 ga_Sound* gauX_sound_file_wav(const char* in_filename, ga_uint32 in_byteOffset)
 {
@@ -176,6 +175,7 @@ typedef struct ga_StreamContext_File {
       OggVorbis_File oggFile;
       vorbis_info* oggInfo;
       gau_OggCallbackData oggCallbackData;
+      ga_int32 pcmTotal;
     } ogg;
   };
 } ga_StreamContext_File;
@@ -244,6 +244,8 @@ ga_Handle* gauX_stream_file_ogg(ga_Mixer* in_mixer,
     return 0;
   in_context->ogg.oggInfo = ov_info(&in_context->ogg.oggFile, -1);
   ov_pcm_seek(&in_context->ogg.oggFile, 0); /* Seek fixes some poorly-formatted oggs. */
+  /* TODO: Verify that ov_pcm_total() == actual number of samples (in debug) */
+  in_context->ogg.pcmTotal = (ga_int32)ov_pcm_total(&in_context->ogg.oggFile, -1);
   validFile = in_context->ogg.oggInfo->channels <= 2;
   if(!validFile)
     return 0;
@@ -551,8 +553,6 @@ void gauX_sound_stream_file_produce(ga_HandleStream* in_handle)
   }
 }
 
-
-
 /* Simple */
 void gauX_sound_stream_file_consume(ga_HandleStream* in_handle, ga_int32 in_samplesConsumed)
 {
@@ -591,8 +591,8 @@ ga_int32 gauX_sound_stream_file_tell(ga_HandleStream* in_handle, ga_int32 in_par
     case GA_FILE_FORMAT_OGG:
       {
         ga_int32 sampleSize = ga_format_sampleSize(&in_handle->format);
-        ga_int32 totalSamples = 0; /* TODO: Calculate total samples on creation */
-        ret = 0 / sampleSize;
+        ga_int32 totalSamples = context->ogg.pcmTotal;
+        ret = totalSamples;
         break;
       }
     }

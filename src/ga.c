@@ -8,6 +8,18 @@
 #include <stdlib.h>
 #include <string.h>
 
+/* Version Functions */
+ga_int32 ga_version_check(ga_int32 in_major, ga_int32 in_minor, ga_int32 in_rev)
+{
+  ga_int32 ret;
+  ret = (in_major == GA_VERSION_MAJOR) ? 0 : (in_major < GA_VERSION_MAJOR) ? -1 : 1;
+  if(ret == 0)
+    ret = (in_minor == GA_VERSION_MINOR) ? 0 : (in_minor < GA_VERSION_MINOR) ? -1 : 1;
+  if(ret == 0)
+    ret = (in_rev == GA_VERSION_REV) ? 0 : (in_rev < GA_VERSION_REV) ? -1 : 1;
+  return ret;
+}
+
 /* System Functions */
 ga_SystemOps* gaX_cb = 0;
 

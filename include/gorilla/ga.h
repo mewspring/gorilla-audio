@@ -10,6 +10,15 @@ extern "C"
 #endif /* __cplusplus */
 
 /*
+  API Version
+*/
+#define GA_VERSION_MAJOR 0
+#define GA_VERSION_MINOR 0
+#define GA_VERSION_REV 1
+
+ga_int32 ga_version_check(ga_int32 in_major, ga_int32 in_minor, ga_int32 in_rev);
+
+/*
   Forward Declarations
 */
 typedef struct ga_Handle ga_Handle;

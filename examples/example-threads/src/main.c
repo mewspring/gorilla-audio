@@ -102,10 +102,10 @@ int main(int argc, char** argv)
   ga_thread_run(streamThread);
 
   /* Load static sound */
-  sound = gau_sound_file("test1.wav", GA_FILE_FORMAT_WAV, 0);
+  sound = gau_sound_file("test.wav", GA_FILE_FORMAT_WAV, 0);
 
   /* Create and play streaming sound */
-  stream = gau_stream_file(mixer, 0, 131072, "test2.wav", GA_FILE_FORMAT_WAV, 0);
+  stream = gau_stream_file(mixer, 0, 131072, "test.ogg", GA_FILE_FORMAT_OGG, 0);
   ga_handle_setCallback(stream, &exampleOnFinish, 0);
   ga_handle_setParami(stream, GA_HANDLE_PARAM_LOOP, 0);
   ga_handle_play(stream);

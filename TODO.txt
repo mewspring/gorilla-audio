@@ -1,8 +1,7 @@
 ROAD MAP
 ---
 
-0.1 TODO:
-- API versioning
+TODO:
 - Stream-synchronization
 - Add support for mono/8-bit mixer formats
 - Fix broken pitch mixing
@@ -16,4 +15,3 @@ ROAD MAP
 
 KNOWN ISSUES:
 - Crashes when attempting to use a non-power-of-two mixer size
-- Tell does not work for OGG streams
