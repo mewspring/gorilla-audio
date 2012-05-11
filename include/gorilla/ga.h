@@ -14,7 +14,7 @@ extern "C"
 */
 #define GA_VERSION_MAJOR 0
 #define GA_VERSION_MINOR 0
-#define GA_VERSION_REV 1
+#define GA_VERSION_REV 2
 
 ga_int32 ga_version_check(ga_int32 in_major, ga_int32 in_minor, ga_int32 in_rev);
 
@@ -222,6 +222,8 @@ ga_Handle* ga_handle_createStream(ga_Mixer* in_mixer,
 ga_result ga_handle_destroy(ga_Handle* in_handle);
 ga_result ga_handle_play(ga_Handle* in_handle);
 ga_result ga_handle_stop(ga_Handle* in_handle);
+ga_int32 ga_handle_playing(ga_Handle* in_handle);
+ga_int32 ga_handle_stopped(ga_Handle* in_handle);
 ga_int32 ga_handle_finished(ga_Handle* in_handle);
 ga_int32 ga_handle_destroyed(ga_Handle* in_handle);
 ga_result ga_handle_setCallback(ga_Handle* in_handle,
@@ -241,6 +243,7 @@ ga_result ga_handle_envelope(ga_Handle* in_handle, ga_int32 in_duration,
                              ga_float32 in_gain);
 ga_result ga_handle_seek(ga_Handle* in_handle, ga_int32 in_sampleOffset);
 ga_int32 ga_handle_tell(ga_Handle* in_handle, ga_int32 in_param);
+ga_Format* ga_handle_format(ga_Handle* in_handle);
 
 /*
   Gorilla Mixer
@@ -259,6 +262,8 @@ typedef struct ga_Mixer {
 } ga_Mixer;
 
 ga_Mixer* ga_mixer_create(ga_Format* in_format, ga_int32 in_numSamples);
+ga_Format* ga_mixer_format(ga_Mixer* in_mixer);
+ga_int32 ga_mixer_numSamples(ga_Mixer* in_mixer);
 ga_result ga_mixer_stream(ga_Mixer* in_mixer);
 ga_result ga_mixer_mix(ga_Mixer* in_mixer, void* out_buffer);
 ga_result ga_mixer_dispatch(ga_Mixer* in_mixer);

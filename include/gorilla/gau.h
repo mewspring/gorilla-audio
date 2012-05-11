@@ -26,6 +26,11 @@ ga_Sound* gau_sound_file(const char* in_filename,
                         ga_int32 in_fileFormat,
                         ga_uint32 in_byteOffset);
 
+ga_result gau_sound_file_format(const char* in_filename,
+                                ga_int32 in_fileFormat,
+                                ga_uint32 in_byteOffset,
+                                ga_Format* out_format);
+
 #ifdef __cplusplus
 }
 #endif /* __cplusplus */

@@ -14,7 +14,7 @@
 #include <windows.h>
 
 static ga_int32 priorityLut[] = {
-  0, 1, -1
+  0, -1, 1, 2
 };
 
 ga_Thread* ga_thread_create(ga_ThreadFunc in_threadFunc, void* in_context,

@@ -333,6 +333,14 @@ ga_result ga_handle_stop(ga_Handle* in_handle)
   ga_mutex_unlock(in_handle->handleMutex);
   return GA_SUCCESS;
 }
+ga_int32 ga_handle_playing(ga_Handle* in_handle)
+{
+  return in_handle->state == GA_HANDLE_STATE_PLAYING ? GA_TRUE : GA_FALSE;
+}
+ga_int32 ga_handle_stopped(ga_Handle* in_handle)
+{
+  return in_handle->state == GA_HANDLE_STATE_STOPPED ? GA_TRUE : GA_FALSE;
+}
 ga_int32 ga_handle_finished(ga_Handle* in_handle)
 {
   return in_handle->state >= GA_HANDLE_STATE_FINISHED ? GA_TRUE : GA_FALSE;
@@ -464,7 +472,23 @@ ga_int32 ga_handle_tell(ga_Handle* in_handle, ga_int32 in_param)
   }
   return -1;
 }
-
+ga_Format* ga_handle_format(ga_Handle* in_handle)
+{
+  switch(in_handle->handleType)
+  {
+  case GA_HANDLE_TYPE_STATIC:
+    {
+      ga_HandleStatic* h = (ga_HandleStatic*)in_handle;
+      return &h->sound->format;
+    }
+  case GA_HANDLE_TYPE_STREAM:
+    {
+      ga_HandleStream* h = (ga_HandleStream*)in_handle;
+      return &h->format;
+    }
+  }
+  return 0;
+}
 ga_result ga_handle_envelope(ga_Handle* in_handle, ga_int32 in_duration,
                              ga_float32 in_gain)
 {
@@ -495,6 +519,14 @@ ga_Mixer* ga_mixer_create(ga_Format* in_format, ga_int32 in_numSamples)
   ret->mixMutex = ga_mutex_create();
   ret->streamMutex = ga_mutex_create();
   return ret;
+}
+ga_Format* ga_mixer_format(ga_Mixer* in_mixer)
+{
+  return &in_mixer->format;
+}
+ga_int32 ga_mixer_numSamples(ga_Mixer* in_mixer)
+{
+  return in_mixer->numSamples;
 }
 ga_result ga_mixer_stream(ga_Mixer* in_mixer)
 {
@@ -576,7 +608,7 @@ ga_int32 gaX_mixer_mix_buffer(ga_Mixer* in_mixer,
       break;
     }
   }
-  return i > j ? i : j; /* TODO: This is incorrect. Needs to be fixed to get pitch working. */
+  return j / srcChannels; /* TODO: This is incorrect. Needs to be fixed to get pitch working. */
 }
 void gaX_mixer_mix_static(ga_Mixer* in_mixer, ga_HandleStatic* in_handle)
 {
@@ -622,11 +654,11 @@ void gaX_mixer_mix_static(ga_Mixer* in_mixer, ga_HandleStatic* in_handle)
     numToMix = numToMix > dstSamples ? dstSamples : numToMix;
     while(numToMix > 0)
     {
-      gaX_mixer_mix_buffer(in_mixer,
-                           (char*)s->data + nextSample * srcSampleSize,
-                           numToMix, &s->format,
-                           dstBuffer, dstSamples, gain, pan, pitch);
-      nextSample += numToMix;
+      ga_int32 srcSamplesMixed = gaX_mixer_mix_buffer(in_mixer,
+                                 (char*)s->data + nextSample * srcSampleSize,
+                                 numToMix, &s->format,
+                                 dstBuffer, dstSamples, gain, pan, pitch);
+      nextSample += srcSamplesMixed;
       dstSamples -= numToMix;
       dstBuffer += numToMix * m->mixFormat.numChannels;
       numToMix = 0;
@@ -664,7 +696,7 @@ void gaX_mixer_mix_streaming(ga_Mixer* in_mixer, ga_HandleStream* in_handle, ga_
   ga_Mixer* m = in_mixer;
   ga_int32 avail = (ga_int32)ga_buffer_bytesAvail(h->buffer);
   ga_int32 streamFinished = !h->produceFunc;
-  if(avail >= m->numSamples || streamFinished)
+  if(avail >= m->numSamples * 4 || streamFinished)
   {
     if(avail > 0 && h->state == GA_HANDLE_STATE_PLAYING)
     {

@@ -88,8 +88,10 @@ ga_Sound* gauX_sound_file_ogg(const char* in_filename, ga_uint32 in_byteOffset)
   ga_int32 validFile;
   ga_int32 retVal = 0;
   gau_OggCallbackData oggCallbackData;
-  FILE* rawFile = fopen(in_filename, "rb");
   ov_callbacks oggCallbacks;
+  FILE* rawFile = fopen(in_filename, "rb");
+  if(!rawFile)
+    return 0;
   oggCallbacks.read_func = &gauX_oggRead;
   oggCallbacks.seek_func = &gauX_oggSeek;
   oggCallbacks.tell_func = &gauX_oggTell;
@@ -101,37 +103,38 @@ ga_Sound* gauX_sound_file_ogg(const char* in_filename, ga_uint32 in_byteOffset)
   oggCallbackData.rawFile = rawFile;
   oggCallbackData.byteOffset = in_byteOffset;
   retVal = ov_open_callbacks(&oggCallbackData, &oggFile, 0, 0, oggCallbacks);
-  if(retVal)
-    return 0;
-  oggInfo = ov_info(&oggFile, -1);
-  ov_pcm_seek(&oggFile, 0); /* Seek fixes some poorly-formatted oggs. */
-  validFile = oggInfo->channels <= 2;
-  if(validFile)
+  if(!retVal)
   {
-    ga_int32 bufferSize = 64 * 1024 / oggInfo->channels / 2;
-    ga_uint32 numBytesRead;
-    format.bitsPerSample = bytesPerSample * 8;
-    format.numChannels = oggInfo->channels;
-    format.sampleRate = oggInfo->rate;
-    do{
-      ga_int32 bitStream;
-      ga_float32** samples;
-      ga_int32 i;
-      ga_int16* dst;
-      ga_int32 samplesRead = ov_read_float(&oggFile, &samples, bufferSize, &bitStream);
-      numBytesRead = samplesRead * oggInfo->channels * 2;
-      data = gaX_cb->reallocFunc(data, totalBytes + numBytesRead);
-      dst = (ga_int16*)(data + totalBytes);
-      totalBytes += numBytesRead;
-      for(i = 0; i < samplesRead; ++i)
-      {
-        ga_int32 channel;
-        for(channel = 0; channel < oggInfo->channels; ++channel, ++dst)
-          *dst = (ga_int16)(samples[channel][i] * 32768.0f);
-      }
-    } while (numBytesRead > 0);
+    oggInfo = ov_info(&oggFile, -1);
+    ov_pcm_seek(&oggFile, 0); /* Seek fixes some poorly-formatted oggs. */
+    validFile = oggInfo->channels <= 2;
+    if(validFile)
+    {
+      ga_int32 bufferSize = 64 * 1024 / oggInfo->channels / 2;
+      ga_uint32 numBytesRead;
+      format.bitsPerSample = bytesPerSample * 8;
+      format.numChannels = oggInfo->channels;
+      format.sampleRate = oggInfo->rate;
+      do{
+        ga_int32 bitStream;
+        ga_float32** samples;
+        ga_int32 i;
+        ga_int16* dst;
+        ga_int32 samplesRead = ov_read_float(&oggFile, &samples, bufferSize, &bitStream);
+        numBytesRead = samplesRead * oggInfo->channels * 2;
+        data = gaX_cb->reallocFunc(data, totalBytes + numBytesRead);
+        dst = (ga_int16*)(data + totalBytes);
+        totalBytes += numBytesRead;
+        for(i = 0; i < samplesRead; ++i)
+        {
+          ga_int32 channel;
+          for(channel = 0; channel < oggInfo->channels; ++channel, ++dst)
+            *dst = (ga_int16)(samples[channel][i] * 32768.0f);
+        }
+      } while (numBytesRead > 0);
+    }
+    ov_clear(&oggFile);
   }
-  ov_clear(&oggFile);
   fclose(rawFile);
   if(validFile)
   {
@@ -625,4 +628,67 @@ void gauX_sound_stream_file_destroy(ga_HandleStream* in_handle)
       break;
     }
   }
+}
+
+ga_result gau_sound_file_format(const char* in_filename,
+                                ga_int32 in_fileFormat,
+                                ga_uint32 in_byteOffset,
+                                ga_Format* out_format)
+{
+  ga_result ret = GA_ERROR_GENERIC;
+  switch(in_fileFormat)
+  {
+  case GA_FILE_FORMAT_WAV:
+    {
+      ga_WavData wavData;
+      ret = gaX_sound_load_wav_header(in_filename, in_byteOffset, &wavData);
+      if(ret == GA_SUCCESS)
+      {
+        out_format->bitsPerSample = wavData.bitsPerSample;
+        out_format->numChannels = wavData.channels;
+        out_format->sampleRate = wavData.sampleRate;
+      }
+      break;
+    }
+  case GA_FILE_FORMAT_OGG:
+    {
+      vorbis_info* oggInfo;
+      OggVorbis_File oggFile;
+      ga_int32 validFile;
+      ga_int32 retVal = 0;
+      gau_OggCallbackData oggCallbackData;
+      ov_callbacks oggCallbacks;
+      FILE* rawFile = fopen(in_filename, "rb");
+      if(!rawFile)
+        break;
+      oggCallbacks.read_func = &gauX_oggRead;
+      oggCallbacks.seek_func = &gauX_oggSeek;
+      oggCallbacks.tell_func = &gauX_oggTell;
+      oggCallbacks.close_func = &gauX_oggClose;
+      fseek(rawFile, 0, SEEK_END);
+      oggCallbackData.rawFileSize = ftell(rawFile);
+      fseek(rawFile, 0, SEEK_SET);
+      clearerr(rawFile);
+      oggCallbackData.rawFile = rawFile;
+      oggCallbackData.byteOffset = in_byteOffset;
+      retVal = ov_open_callbacks(&oggCallbackData, &oggFile, 0, 0, oggCallbacks);
+      if(!retVal)
+      {
+        oggInfo = ov_info(&oggFile, -1);
+        ov_pcm_seek(&oggFile, 0); /* Seek fixes some poorly-formatted oggs. */
+        validFile = oggInfo->channels <= 2;
+        if(validFile)
+        {
+          out_format->bitsPerSample = 2 * 8; /* always read oggs as 16-bit */
+          out_format->numChannels = oggInfo->channels;
+          out_format->sampleRate = oggInfo->rate;
+          ret = GA_SUCCESS;
+        }
+        ov_clear(&oggFile);
+      }
+      fclose(rawFile);
+      break;
+    }
+  }
+  return ret;
 }

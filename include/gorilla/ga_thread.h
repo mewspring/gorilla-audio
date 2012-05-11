@@ -14,6 +14,7 @@ extern "C"
 #define GA_THREAD_PRIORITY_NORMAL 0
 #define GA_THREAD_PRIORITY_LOW 1
 #define GA_THREAD_PRIORITY_HIGH 2
+#define GA_THREAD_PRIORITY_HIGHEST 3
 
 typedef ga_int32 (*ga_ThreadFunc)(void* in_context);
 
