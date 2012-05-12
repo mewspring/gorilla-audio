@@ -2,16 +2,29 @@ ROAD MAP
 ---
 
 TODO:
-- Stream-synchronization
+- Fix audio downsampling (such as 48000 -> 41000)
+- Fix/implement pitch mixing
 - Add support for mono/8-bit mixer formats
-- Fix broken pitch mixing
+- Apply volatile keyword to values that are set/checked in non-mutexed multi-threaded code
+- Preserve sound data when a sound is destroyed while it is still in-use by a handle
+  - Defer the actual cleanup in ga_sound_destroy()
+  - When last handle actively using the sound is dead, actually clean out the data
+  - If the sound does not own the data, either assert or make a copy of the data
 - Mixer-side enveloping
+- Multi-stream-synchronization
 - Handle-locking for atomic groups of control commands
-- Improve error-handling
+- Implement OpenSL (Android 2.3+) device
 - Port to Linux and Mac
-- DirectSound device
-- Doxygen API documentation
 
+BACKLOG:
+- Improve extensibility of GAU file loading/streaming
+- Rename GA_FILE_FORMAT* to GAU_FILE_FORMAT* as needed
+- Improve user-based device extensibility
+- Improve error-handling
+- Implement OpenMAX AL device
+- Implement DirectSound device
+- Doxygen API documentation
 
 KNOWN ISSUES:
 - Crashes when attempting to use a non-power-of-two mixer size
+- Crashes when destroying a ga_Sound while the mixer is mixing it
