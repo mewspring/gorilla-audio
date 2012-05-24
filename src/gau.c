@@ -78,7 +78,7 @@ ga_Sound* gauX_sound_file_wav(const char* in_filename, ga_uint32 in_byteOffset)
 ga_Sound* gauX_sound_file_ogg(const char* in_filename, ga_uint32 in_byteOffset)
 {
   ga_Sound* ret = 0;
-  ga_int32 endian = 0; // 0 is little endian (aka x86), 1 is big endian
+  ga_int32 endian = 0; /* 0 is little endian (aka x86), 1 is big endian */
   ga_int32 bytesPerSample = 2;
   ga_int32 totalBytes = 0;
   char* data = 0;
@@ -129,7 +129,7 @@ ga_Sound* gauX_sound_file_ogg(const char* in_filename, ga_uint32 in_byteOffset)
         {
           ga_int32 channel;
           for(channel = 0; channel < oggInfo->channels; ++channel, ++dst)
-            *dst = (ga_int16)(samples[channel][i] * 32768.0f);
+            *dst = (ga_int16)(samples[channel][i] * 32767.0f);
         }
       } while (numBytesRead > 0);
     }
@@ -225,7 +225,7 @@ ga_Handle* gauX_stream_file_ogg(ga_Mixer* in_mixer,
                                 ga_uint32 in_byteOffset,
                                 ga_StreamContext_File* in_context)
 {
-  ga_int32 endian = 0; // 0 is little endian (aka x86), 1 is big endian
+  ga_int32 endian = 0; /* 0 is little endian (aka x86), 1 is big endian */
   ga_int32 bytesPerSample = 2;
   ga_int32 totalBytes = 0;
   ga_Format fmt;
@@ -354,7 +354,7 @@ ga_int32 gauX_read_oggvorbis(char* in_data, ga_int32 in_bytes,
     {
       ga_int32 channel;
       for(channel = 0; channel < in_info->channels; ++channel, ++dst)
-        *dst = (ga_int16)(samples[channel][i] * 32768.0f);
+        *dst = (ga_int16)(samples[channel][i] * 32767.0f);
     }
   } while (numBytesRead > 0 && totalBytes <= in_bytes && samplesLeft);
   return totalBytes;

@@ -30,8 +30,8 @@ typedef struct ga_Mixer ga_Mixer;
 typedef struct ga_CircBuffer {
   ga_uint8* data;
   ga_uint32 dataSize;
-  ga_uint32 nextAvail;
-  ga_uint32 nextFree;
+  volatile ga_uint32 nextAvail;
+  volatile ga_uint32 nextFree;
 } ga_CircBuffer;
 
 ga_CircBuffer* ga_buffer_create(ga_uint32 in_size);
@@ -48,6 +48,7 @@ ga_result ga_buffer_getAvail(ga_CircBuffer* in_buffer, ga_uint32 in_numBytes,
                              void** out_dataB, ga_uint32* out_sizeB);
 void ga_buffer_read(ga_CircBuffer* in_buffer, void* in_data,
                     ga_uint32 in_numBytes);
+void ga_buffer_produce(ga_CircBuffer* in_buffer, ga_uint32 in_numBytes);
 void ga_buffer_consume(ga_CircBuffer* in_buffer, ga_uint32 in_numBytes);
 
 /*
@@ -55,8 +56,8 @@ void ga_buffer_consume(ga_CircBuffer* in_buffer, ga_uint32 in_numBytes);
 */
 typedef struct ga_Link ga_Link;
 typedef struct ga_Link {
-  ga_Link* next;
-  ga_Link* prev;
+  ga_Link* next; /* TODO: Should these be volatile? */
+  ga_Link* prev; /* TODO: Should these be volatile? */
   void* data;
 } ga_Link;
 
@@ -191,12 +192,12 @@ typedef void (*ga_StreamDestroyFunc)(ga_HandleStream* in_handle);
 typedef struct ga_HandleStatic {
   GA_HANDLE_HEADER
   ga_Sound* sound;
-  ga_int32 nextSample;
+  volatile ga_int32 nextSample;
 } ga_HandleStatic;
 
 typedef struct ga_HandleStream {
   GA_HANDLE_HEADER
-  ga_StreamProduceFunc produceFunc;
+  volatile ga_StreamProduceFunc produceFunc;
   ga_StreamConsumeFunc consumeFunc;
   ga_StreamSeekFunc seekFunc;
   ga_StreamTellFunc tellFunc;
