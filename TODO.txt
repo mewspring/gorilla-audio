@@ -2,8 +2,6 @@ ROAD MAP
 ---
 
 TODO:
-- Fix audio downsampling (such as 48000 -> 41000)
-- Fix/implement pitch mixing
 - Add support for mono/8-bit mixer formats
 - Apply volatile keyword to values that are set/checked in non-mutexed multi-threaded code
 - Preserve sound data when a sound is destroyed while it is still in-use by a handle
