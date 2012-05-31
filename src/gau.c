@@ -135,7 +135,8 @@ ga_Sound* gauX_sound_file_ogg(const char* in_filename, ga_uint32 in_byteOffset)
     }
     ov_clear(&oggFile);
   }
-  fclose(rawFile);
+  else
+    fclose(rawFile);
   if(validFile)
   {
     ret = ga_sound_create(data, totalBytes, &format, 0);
@@ -251,7 +252,11 @@ ga_Handle* gauX_stream_file_ogg(ga_Mixer* in_mixer,
   in_context->ogg.pcmTotal = (ga_int32)ov_pcm_total(&in_context->ogg.oggFile, -1);
   validFile = in_context->ogg.oggInfo->channels <= 2;
   if(!validFile)
+  {
+    ov_clear(&in_context->ogg.oggFile);
+    in_context->file = 0;
     return 0;
+  }
   fmt.bitsPerSample = 16;
   fmt.numChannels = in_context->ogg.oggInfo->channels;
   fmt.sampleRate = in_context->ogg.oggInfo->rate;
@@ -304,10 +309,9 @@ ga_Handle* gau_stream_file(ga_Mixer* in_mixer,
         }
     }
     ga_mutex_destroy(context->seekMutex);
+    fclose(context->file);
   }
 
-  if(context->file)
-    fclose(context->file);
   gaX_cb->freeFunc(context->filename);
   gaX_cb->freeFunc(context);
   return 0;
@@ -624,7 +628,6 @@ void gauX_sound_stream_file_destroy(ga_HandleStream* in_handle)
   case GA_FILE_FORMAT_OGG:
     {
       ov_clear(&context->ogg.oggFile);
-      fclose(context->file);
       break;
     }
   }
@@ -686,7 +689,8 @@ ga_result gau_sound_file_format(const char* in_filename,
         }
         ov_clear(&oggFile);
       }
-      fclose(rawFile);
+      else
+        fclose(rawFile);
       break;
     }
   }

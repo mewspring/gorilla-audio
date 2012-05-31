@@ -50,6 +50,77 @@ void ga_thread_destroy(ga_Thread* in_thread)
 }
 
 #elif defined(__linux__)
+#include <pthread.h>
+#include <sched.h>
+
+static ga_int32 priorityLut[] = {
+  0, -10, 10, 19
+};
+
+typedef struct LinuxThreadData {
+  pthread_t thread;
+  pthread_attr_t attr;
+  pthread_mutex_t suspendMutex;
+  ga_ThreadFunc threadFunc;
+  void* context;
+} LinuxThreadData;
+
+static void* StaticThreadWrapper(void* in_context)
+{
+  LinuxThreadData* threadData = (LinuxThreadData*)in_context;
+  pthread_mutex_lock(&threadData->suspendMutex);
+  threadData->threadFunc(threadData->context);
+  pthread_mutex_unlock(&threadData->suspendMutex);
+  return 0;
+}
+
+ga_Thread* ga_thread_create(ga_ThreadFunc in_threadFunc, void* in_context,
+                            ga_int32 in_priority, ga_int32 in_stackSize)
+{
+  int result = 0;
+  struct sched_param param;
+  ga_Thread* ret = gaX_cb->allocFunc(sizeof(ga_Thread));
+  LinuxThreadData* threadData = (LinuxThreadData*)gaX_cb->allocFunc(sizeof(LinuxThreadData));
+  threadData->threadFunc = in_threadFunc;
+  threadData->context = in_context;
+  
+  ret->threadObj = threadData;
+  ret->threadFunc = in_threadFunc;
+  ret->context = in_context;
+  ret->priority = in_priority;
+  ret->stackSize = in_stackSize;
+  
+  pthread_mutex_init(&threadData->suspendMutex, NULL);
+  pthread_mutex_lock(&threadData->suspendMutex);
+  
+  result = pthread_attr_init(&threadData->attr);
+  param.__sched_priority = priorityLut[in_priority];
+  pthread_attr_setschedparam(&threadData->attr, &param);
+  pthread_create(&threadData->thread, &threadData->attr, StaticThreadWrapper, threadData);
+  
+  return ret;
+}
+void ga_thread_run(ga_Thread* in_thread)
+{
+  LinuxThreadData* threadData = (LinuxThreadData*)in_thread->threadObj;
+  pthread_mutex_unlock(&threadData->suspendMutex);
+}
+void ga_thread_join(ga_Thread* in_thread)
+{
+  LinuxThreadData* threadData = (LinuxThreadData*)in_thread->threadObj;
+  pthread_join(threadData->thread, 0);
+}
+void ga_thread_sleep(ga_uint32 in_ms)
+{
+  usleep(in_ms * 1000);
+}
+void ga_thread_destroy(ga_Thread* in_thread)
+{
+  LinuxThreadData* threadData = (LinuxThreadData*)in_thread->threadObj;
+  pthread_mutex_destroy(&threadData->suspendMutex);
+  pthread_exit(&threadData->thread);
+  pthread_attr_destroy(&threadData->attr);
+}
 
 #else
 #error Thread class not yet defined for this platform
