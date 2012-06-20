@@ -26,15 +26,15 @@ const char* gaX_openAlErrorToString(ALuint error)
   return errMsg;
 }
 
-static ga_int32 AUDIO_ERROR = 0;
+static gc_int32 AUDIO_ERROR = 0;
 
 #define CHECK_AL_ERROR \
   if((AUDIO_ERROR = alGetError()) != AL_NO_ERROR) \
     printf("%s\n", gaX_openAlErrorToString(AUDIO_ERROR));
 
-ga_DeviceImpl_OpenAl* gaX_device_open_openAl(ga_int32 in_numBuffers)
+ga_DeviceImpl_OpenAl* gaX_device_open_openAl(gc_int32 in_numBuffers)
 {
-  ga_DeviceImpl_OpenAl* ret = gaX_cb->allocFunc(sizeof(ga_DeviceImpl_OpenAl));
+  ga_DeviceImpl_OpenAl* ret = gcX_ops->allocFunc(sizeof(ga_DeviceImpl_OpenAl));
   ALCboolean ctxRet;
 
   ret->devType = GA_DEVICE_TYPE_OPENAL;
@@ -59,7 +59,7 @@ ga_DeviceImpl_OpenAl* gaX_device_open_openAl(ga_int32 in_numBuffers)
   CHECK_AL_ERROR;
   if(AUDIO_ERROR != AL_NO_ERROR)
     goto cleanup;
-  ret->hwBuffers = gaX_cb->allocFunc(sizeof(ga_uint32) * ret->numBuffers);
+  ret->hwBuffers = gcX_ops->allocFunc(sizeof(gc_uint32) * ret->numBuffers);
   alGenBuffers(ret->numBuffers, ret->hwBuffers);
   CHECK_AL_ERROR;
   if(AUDIO_ERROR != AL_NO_ERROR)
@@ -75,30 +75,30 @@ ga_DeviceImpl_OpenAl* gaX_device_open_openAl(ga_int32 in_numBuffers)
 
 cleanup:
   if(ret->hwBuffers)
-    gaX_cb->freeFunc(ret->hwBuffers);
+    gcX_ops->freeFunc(ret->hwBuffers);
   if(ret->context)
     alcDestroyContext(ret->context);
   if(ret->dev)
     alcCloseDevice(ret->dev);
-  gaX_cb->freeFunc(ret);
+  gcX_ops->freeFunc(ret);
   return 0;
 }
-ga_result gaX_device_close_openAl(ga_DeviceImpl_OpenAl* in_dev)
+gc_result gaX_device_close_openAl(ga_DeviceImpl_OpenAl* in_dev)
 {
   alDeleteSources(1, &in_dev->hwSource);
   alDeleteBuffers(in_dev->numBuffers, in_dev->hwBuffers);
   alcDestroyContext(in_dev->context);
   alcCloseDevice(in_dev->dev);
   in_dev->devType = GA_DEVICE_TYPE_UNKNOWN;
-  gaX_cb->freeFunc(in_dev->hwBuffers);
-  gaX_cb->freeFunc(in_dev);
-  return GA_SUCCESS;
+  gcX_ops->freeFunc(in_dev->hwBuffers);
+  gcX_ops->freeFunc(in_dev);
+  return GC_SUCCESS;
 }
-ga_int32 gaX_device_check_openAl(ga_DeviceImpl_OpenAl* in_device)
+gc_int32 gaX_device_check_openAl(ga_DeviceImpl_OpenAl* in_device)
 {
-  ga_int32 whichBuf = 0;
+  gc_int32 whichBuf = 0;
   ga_DeviceImpl_OpenAl* d = in_device;
-  ga_int32 numProcessed = 0;
+  gc_int32 numProcessed = 0;
   alGetSourcei(in_device->hwSource, AL_BUFFERS_PROCESSED, &numProcessed);
   CHECK_AL_ERROR;
   while(numProcessed--)
@@ -109,31 +109,31 @@ ga_int32 gaX_device_check_openAl(ga_DeviceImpl_OpenAl* in_device)
   }
   return d->emptyBuffers;
 }
-ga_result gaX_device_queue_openAl(ga_DeviceImpl_OpenAl* in_device,
+gc_result gaX_device_queue_openAl(ga_DeviceImpl_OpenAl* in_device,
                                  ga_Format* in_format,
-                                 ga_int32 in_numSamples,
+                                 gc_int32 in_numSamples,
                                  void* in_buffer)
 {
-  ga_int32 formatOal;
-  ga_int32 sampleSize;
+  gc_int32 formatOal;
+  gc_int32 sampleSize;
   ALint state;
-  ga_int32 bps = in_format->bitsPerSample;
+  gc_int32 bps = in_format->bitsPerSample;
   ga_DeviceImpl_OpenAl* d = in_device;
 
   if(in_format->numChannels == 1)
-    formatOal = (ga_int32)(bps == 16 ? AL_FORMAT_MONO16 : AL_FORMAT_MONO8);
+    formatOal = (gc_int32)(bps == 16 ? AL_FORMAT_MONO16 : AL_FORMAT_MONO8);
   else
-    formatOal = (ga_int32)(bps == 16 ? AL_FORMAT_STEREO16 : AL_FORMAT_STEREO8);
+    formatOal = (gc_int32)(bps == 16 ? AL_FORMAT_STEREO16 : AL_FORMAT_STEREO8);
   sampleSize = ga_format_sampleSize(in_format);
   alBufferData(d->hwBuffers[d->nextBuffer], formatOal, in_buffer,
     (ALsizei)in_numSamples * sampleSize, in_format->sampleRate);
   CHECK_AL_ERROR;
   if(AUDIO_ERROR != AL_NO_ERROR)
-    return GA_ERROR_GENERIC;
+    return GC_ERROR_GENERIC;
   alSourceQueueBuffers(d->hwSource, 1, &d->hwBuffers[d->nextBuffer]);
   CHECK_AL_ERROR;
   if(AUDIO_ERROR != AL_NO_ERROR)
-    return GA_ERROR_GENERIC;
+    return GC_ERROR_GENERIC;
   d->nextBuffer = (d->nextBuffer + 1) % d->numBuffers;
   --d->emptyBuffers;
   alGetSourcei(d->hwSource, AL_SOURCE_STATE, &state);
@@ -144,7 +144,7 @@ ga_result gaX_device_queue_openAl(ga_DeviceImpl_OpenAl* in_device,
     alSourcePlay(d->hwSource);
   }
   CHECK_AL_ERROR;
-  return GA_SUCCESS;
+  return GC_SUCCESS;
 }
 
 #endif /* LINK_AGAINST_OPENAL */

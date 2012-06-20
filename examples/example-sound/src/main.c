@@ -8,7 +8,7 @@
 
 static void exampleOnFinish(ga_Handle* in_handle, void* in_context)
 {
-  ga_int32 n = (ga_int32)in_context;
+  gc_int32 n = (gc_int32)in_context;
   printf("Sound #%d finished\n", n);
   ga_handle_destroy(in_handle);
 }
@@ -17,16 +17,16 @@ int main(int argc, char** argv)
 {
   ga_Format fmt;
   ga_Device* dev;
-  ga_int16* mixBuffer;
-  ga_int32 numSamples;
-  ga_int32 sampleSize;
-  ga_int32 numToQueue;
+  gc_int16* mixBuffer;
+  gc_int32 numSamples;
+  gc_int32 sampleSize;
+  gc_int32 numToQueue;
   ga_Mixer* mixer;
   ga_Sound* sound;
   ga_Handle* handle;
 
   /* Initialize library */
-  ga_initialize(0);
+  gc_initialize(0);
 
   /* Initialize device */
   dev = ga_device_open(GA_DEVICE_TYPE_OPENAL, 2);
@@ -40,7 +40,7 @@ int main(int argc, char** argv)
   fmt.sampleRate = 44100;
   numSamples = 2048;
   sampleSize = ga_format_sampleSize(&fmt);
-  mixBuffer = (ga_int16*)malloc(numSamples * sampleSize);
+  mixBuffer = (gc_int16*)malloc(numSamples * sampleSize);
   mixer = ga_mixer_create(&fmt, numSamples);
 
   /* Load and play static sound */
@@ -67,7 +67,7 @@ int main(int argc, char** argv)
   ga_sound_destroy(sound);
   ga_mixer_destroy(mixer);
   ga_device_close(dev);
-  ga_shutdown();
+  gc_shutdown();
 
   return 0;
 }

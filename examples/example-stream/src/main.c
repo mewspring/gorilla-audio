@@ -10,15 +10,15 @@ int main(int argc, char** argv)
 {
   ga_Format fmt;
   ga_Device* dev;
-  ga_int16* buf;
-  ga_int32 numSamples;
-  ga_int32 sampleSize;
-  ga_int32 numToQueue;
+  gc_int16* buf;
+  gc_int32 numSamples;
+  gc_int32 sampleSize;
+  gc_int32 numToQueue;
   ga_Mixer* mixer;
   ga_Handle* handle;
 
   /* Initialize library */
-  ga_initialize(0);
+  gc_initialize(0);
 
   /* Initialize device */
   dev = ga_device_open(GA_DEVICE_TYPE_OPENAL, 2);
@@ -32,7 +32,7 @@ int main(int argc, char** argv)
   fmt.sampleRate = 44100;
   numSamples = 2048;
   sampleSize = ga_format_sampleSize(&fmt);
-  buf = (ga_int16*)malloc(numSamples * sampleSize);
+  buf = (gc_int16*)malloc(numSamples * sampleSize);
   mixer = ga_mixer_create(&fmt, numSamples);
 
   /* Create and play streaming sound */
@@ -59,7 +59,7 @@ int main(int argc, char** argv)
   ga_handle_destroy(handle);
   ga_mixer_destroy(mixer);
   ga_device_close(dev);
-  ga_shutdown();
+  gc_shutdown();
 
   return 0;
 }

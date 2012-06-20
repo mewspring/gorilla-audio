@@ -1,6 +1,5 @@
 #include "gorilla/ga.h"
 #include "gorilla/gau.h"
-#include "gorilla/ga_thread.h"
 
 #include <memory.h>
 #include <stdlib.h>
@@ -9,7 +8,7 @@
 
 static void exampleOnFinish(ga_Handle* in_handle, void* in_context)
 {
-  ga_int32 n = (ga_int32)in_context;
+  gc_int32 n = (gc_int32)in_context;
   printf("Sound #%d finished\n", n);
   ga_handle_destroy(in_handle);
 }
@@ -20,25 +19,25 @@ typedef struct AudioThreadContext
   ga_Device* device;
   ga_Mixer* mixer;
   ga_Format* format;
-  ga_int32 kill;
+  gc_int32 kill;
 } AudioThreadContext;
 
 /* Mix thread logic */
-static ga_int32 mixThreadFunc(void* in_context)
+static gc_int32 mixThreadFunc(void* in_context)
 {
   AudioThreadContext* context = (AudioThreadContext*)in_context;
   ga_Mixer* m = context->mixer;
-  ga_int32 sampleSize = ga_format_sampleSize(context->format);
-  ga_int16* buf = (ga_int16*)malloc(m->numSamples * sampleSize);
+  gc_int32 sampleSize = ga_format_sampleSize(context->format);
+  gc_int16* buf = (gc_int16*)malloc(m->numSamples * sampleSize);
   while(!context->kill)
   {
-    ga_int32 numToQueue = ga_device_check(context->device);
+    gc_int32 numToQueue = ga_device_check(context->device);
     while(numToQueue--)
     {
       ga_mixer_mix(m, buf);
       ga_device_queue(context->device, context->format, m->numSamples, buf);
     }
-    ga_thread_sleep(25);
+    gc_thread_sleep(5);
   }
   free(buf);
   printf("Mixer thread terminated.\n");
@@ -46,14 +45,14 @@ static ga_int32 mixThreadFunc(void* in_context)
 }
 
 /* Stream thread logic */
-static ga_int32 streamThreadFunc(void* in_context)
+static gc_int32 streamThreadFunc(void* in_context)
 {
   AudioThreadContext* context = (AudioThreadContext*)in_context;
   ga_Mixer* m = context->mixer;
   while(!context->kill)
   {
     ga_mixer_stream(m);
-    ga_thread_sleep(50);
+    gc_thread_sleep(50);
   }
   printf("Stream thread terminated.\n");
   return 0;
@@ -63,17 +62,17 @@ int main(int argc, char** argv)
 {
   ga_Format fmt;
   ga_Device* dev;
-  ga_int32 numSamples;
+  gc_int32 numSamples;
   ga_Mixer* mixer;
   ga_Sound* sound;
   ga_Handle* handle;
   ga_Handle* stream;
-  ga_Thread* mixThread;
-  ga_Thread* streamThread;
+  gc_Thread* mixThread;
+  gc_Thread* streamThread;
   AudioThreadContext context;
 
   /* Initialize library */
-  ga_initialize(0);
+  gc_initialize(0);
 
   /* Initialize device */
   dev = ga_device_open(GA_DEVICE_TYPE_OPENAL, 2);
@@ -95,11 +94,11 @@ int main(int argc, char** argv)
   context.kill = 0;
 
   /* Create and run mixer and stream threads */
-  mixThread = ga_thread_create(mixThreadFunc, &context, GA_THREAD_PRIORITY_HIGH, 64 * 1024);
-  ga_thread_run(mixThread);
+  mixThread = gc_thread_create(mixThreadFunc, &context, GC_THREAD_PRIORITY_HIGH, 64 * 1024);
+  gc_thread_run(mixThread);
 
-  streamThread = ga_thread_create(streamThreadFunc, &context, GA_THREAD_PRIORITY_HIGH, 64 * 1024);
-  ga_thread_run(streamThread);
+  streamThread = gc_thread_create(streamThreadFunc, &context, GC_THREAD_PRIORITY_HIGH, 64 * 1024);
+  gc_thread_run(streamThread);
 
   /* Load static sound */
   sound = gau_sound_file("test.wav", GA_FILE_FORMAT_WAV, 0);
@@ -112,7 +111,7 @@ int main(int argc, char** argv)
 
   /* Bounded mix/queue/dispatch loop */
   {
-    ga_int32 count = 0;
+    gc_int32 count = 0;
 
     while(!context.kill)
     {
@@ -129,12 +128,12 @@ int main(int argc, char** argv)
       if(ga_handle_finished(stream))
       {
         context.kill = 1;
-        ga_thread_join(mixThread);
-        ga_thread_join(streamThread);
+        gc_thread_join(mixThread);
+        gc_thread_join(streamThread);
         break;
       }
       printf("%d / %d\n", ga_handle_tell(stream, GA_TELL_PARAM_CURRENT), ga_handle_tell(stream, GA_TELL_PARAM_TOTAL));
-      ga_thread_sleep(1);
+      gc_thread_sleep(1);
     }
   }
 
@@ -142,7 +141,7 @@ int main(int argc, char** argv)
   ga_sound_destroy(sound);
   ga_mixer_destroy(mixer);
   ga_device_close(dev);
-  ga_shutdown();
+  gc_shutdown();
 
   return 0;
 }

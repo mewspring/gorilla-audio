@@ -70,8 +70,6 @@ set(GORILLA_INCLUDE
   ${INCLUDE_DIR}/gorilla/ga.h
   ${INCLUDE_DIR}/gorilla/gau.h
   ${INCLUDE_DIR}/gorilla/ga_wav.h
-  ${INCLUDE_DIR}/gorilla/ga_thread.h
-  ${INCLUDE_DIR}/gorilla/ga_types.h
   ${INCLUDE_DIR}/gorilla/ga_openal.h
   )
   
@@ -79,10 +77,20 @@ set(GORILLA_SRC
   ${SRC_DIR}/ga.c
   ${SRC_DIR}/gau.c
   ${SRC_DIR}/ga_wav.c
-  ${SRC_DIR}/ga_thread.c
   ${SRC_DIR}/ga_openal.c
   )
 
+set(GORILLA_COMMON_INCLUDE
+  ${INCLUDE_DIR}/gorilla/common/gc_common.h
+  ${INCLUDE_DIR}/gorilla/common/gc_thread.h
+  ${INCLUDE_DIR}/gorilla/common/gc_types.h
+  )
+  
+set(GORILLA_COMMON_SRC
+  ${SRC_DIR}/common/gc_common.c
+  ${SRC_DIR}/common/gc_thread.c
+  )
+  
 # OGG/Vorbis
 set(LIBOGGDIR ../ext/libogg)
 set(LIBVORBISDIR ../ext/libvorbis)
@@ -127,12 +135,16 @@ set(OGGVORBIS_SRC
 
 source_group("include" FILES ${GORILLA_INCLUDE})
 source_group("src" FILES ${GORILLA_SRC})
+source_group("include\\common" FILES ${GORILLA_COMMON_INCLUDE})
+source_group("src\\common" FILES ${GORILLA_COMMON_SRC})
 source_group("include\\oggvorbis" FILES ${OGGVORBIS_INCLUDE})
 source_group("src\\oggvorbis" FILES ${OGGVORBIS_SRC})
 
 add_library(gorilla STATIC
   ${GORILLA_INCLUDE}
   ${GORILLA_SRC}
+  ${GORILLA_COMMON_INCLUDE}
+  ${GORILLA_COMMON_SRC}
   ${OGGVORBIS_INCLUDE}
   ${OGGVORBIS_SRC}
   )
