@@ -93,6 +93,84 @@ gc_result ga_device_queue(ga_Device* in_device,
   return GC_ERROR_GENERIC;
 }
 
+/* Data Source Structure */
+gc_int32 ga_data_source_read(ga_DataSource* in_dataSrc, void* in_dst, gc_int32 in_size, gc_int32 in_count)
+{
+  tDataSourceFunc_Read func = in_dataSrc->readFunc;
+  char* context = (char*)in_dataSrc + sizeof(ga_DataSource);
+  assert(func);
+  return func(context, in_dst, in_size, in_count);
+}
+gc_int32 ga_data_source_seek(ga_DataSource* in_dataSrc, gc_int32 in_offset, gc_int32 in_origin)
+{
+  tDataSourceFunc_Seek func = in_dataSrc->seekFunc;
+  char* context = (char*)in_dataSrc + sizeof(ga_DataSource);
+  if(func)
+    return func(context, in_offset, in_origin);
+  return -1;
+}
+gc_int32 ga_data_source_tell(ga_DataSource* in_dataSrc)
+{
+  tDataSourceFunc_Tell func = in_dataSrc->tellFunc;
+  char* context = (char*)in_dataSrc + sizeof(ga_DataSource);
+  if(func)
+    return func(context);
+  return -1;
+}
+void ga_data_source_destroy(ga_DataSource* in_dataSrc)
+{
+  tDataSourceFunc_Close func = in_dataSrc->closeFunc;
+  char* context = (char*)in_dataSrc + sizeof(ga_DataSource);
+  if(func)
+    func(context);
+  gcX_ops->freeFunc(in_dataSrc);
+}
+
+/* Sample Source Structure */
+gc_int32 ga_sample_source_read(ga_SampleSource* in_sampleSrc, void* in_dst, gc_int32 in_numSamples)
+{
+  tSampleSourceFunc_Read func = in_sampleSrc->readFunc;
+  char* context = (char*)in_sampleSrc + sizeof(ga_SampleSource);
+  assert(func);
+  return func(context, in_dst, in_numSamples);
+}
+gc_int32 ga_sample_source_end(ga_SampleSource* in_sampleSrc)
+{
+  tSampleSourceFunc_End func = in_sampleSrc->endFunc;
+  char* context = (char*)in_sampleSrc + sizeof(ga_SampleSource);
+  assert(func);
+  return func(context);
+}
+gc_int32 ga_sample_source_seek(ga_SampleSource* in_sampleSrc, gc_int32 in_sampleOffset)
+{
+  tSampleSourceFunc_Seek func = in_sampleSrc->seekFunc;
+  char* context = (char*)in_sampleSrc + sizeof(ga_SampleSource);
+  if(func)
+    return func(context, in_sampleOffset);
+  return -1;
+}
+gc_int32 ga_sample_source_tell(ga_SampleSource* in_sampleSrc, gc_int32* out_totalSamples)
+{
+  tSampleSourceFunc_Tell func = in_sampleSrc->tellFunc;
+  char* context = (char*)in_sampleSrc + sizeof(ga_SampleSource);
+  if(func)
+    return func(context, out_totalSamples);
+  *out_totalSamples = -1;
+  return -1;
+}
+void ga_sample_source_format(ga_SampleSource* in_sampleSrc, ga_Format* out_format)
+{
+  memcpy(out_format, &in_sampleSrc->format, sizeof(ga_Format));
+}
+void ga_sample_source_destroy(ga_SampleSource* in_sampleSrc)
+{
+  tSampleSourceFunc_Close func = in_sampleSrc->closeFunc;
+  char* context = (char*)in_sampleSrc + sizeof(ga_DataSource);
+  if(func)
+    func(context);
+  gcX_ops->freeFunc(in_sampleSrc);
+}
+
 /* Sound Functions */
 ga_Sound* ga_sound_create(void* in_data, gc_int32 in_size,
                           ga_Format* in_format, gc_int32 in_copy)

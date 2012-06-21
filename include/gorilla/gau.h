@@ -31,6 +31,12 @@ gc_result gau_sound_file_format(const char* in_filename,
                                 gc_uint32 in_byteOffset,
                                 ga_Format* out_format);
 
+/* Concrete Implementations */
+ga_DataSource* gau_data_source_create_file(const char* in_filename);
+ga_DataSource* gau_data_source_create_file_arc(const char* in_filename, gc_int32 in_offset, gc_int32 in_size);
+ga_SampleSource* gau_sample_source_create_wav(ga_DataSource* in_dataSrc);
+ga_SampleSource* gau_sample_source_create_ogg(ga_DataSource* in_dataSrc);
+
 #ifdef __cplusplus
 }
 #endif /* __cplusplus */

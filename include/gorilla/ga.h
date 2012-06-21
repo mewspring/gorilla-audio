@@ -58,6 +58,55 @@ gc_result ga_device_queue(ga_Device* in_device,
 gc_result ga_device_close(ga_Device* in_device);
 
 /*
+  Data Source Structure
+*/
+#define GA_SEEK_ORIGIN_SET 0
+#define GA_SEEK_ORIGIN_CUR 1
+#define GA_SEEK_ORIGIN_END 2
+
+typedef gc_int32 (*tDataSourceFunc_Read)(void* in_context, void* in_dst, gc_int32 in_size, gc_int32 in_count);
+typedef gc_int32 (*tDataSourceFunc_Seek)(void* in_context, gc_int32 in_offset, gc_int32 in_origin);
+typedef gc_int32 (*tDataSourceFunc_Tell)(void* in_context);
+typedef void (*tDataSourceFunc_Close)(void* in_context);
+
+typedef struct ga_DataSource {
+  tDataSourceFunc_Read readFunc;
+  tDataSourceFunc_Seek seekFunc; /* OPTIONAL */
+  tDataSourceFunc_Tell tellFunc; /* OPTIONAL */
+  tDataSourceFunc_Close closeFunc; /* OPTIONAL */
+} ga_DataSource;
+
+gc_int32 ga_data_source_read(ga_DataSource* in_dataSrc, void* in_dst, gc_int32 in_size, gc_int32 in_count);
+gc_int32 ga_data_source_seek(ga_DataSource* in_dataSrc, gc_int32 in_offset, gc_int32 in_origin);
+gc_int32 ga_data_source_tell(ga_DataSource* in_dataSrc);
+void ga_data_source_destroy(ga_DataSource* in_dataSrc);
+
+/*
+  Sample Source Structure
+*/
+typedef gc_int32 (*tSampleSourceFunc_Read)(void* in_context, void* in_dst, gc_int32 in_numSamples);
+typedef gc_int32 (*tSampleSourceFunc_End)(void* in_context);
+typedef gc_int32 (*tSampleSourceFunc_Seek)(void* in_context, gc_int32 in_sampleOffset);
+typedef gc_int32 (*tSampleSourceFunc_Tell)(void* in_context, gc_int32* out_totalSamples);
+typedef void (*tSampleSourceFunc_Close)(void* in_context);
+
+typedef struct ga_SampleSource {
+  tSampleSourceFunc_Read readFunc;
+  tSampleSourceFunc_End endFunc;
+  tSampleSourceFunc_Seek seekFunc; /* OPTIONAL */
+  tSampleSourceFunc_Tell tellFunc; /* OPTIONAL */
+  tSampleSourceFunc_Close closeFunc; /* OPTIONAL */
+  ga_Format format;
+} ga_SampleSource;
+
+gc_int32 ga_sample_source_read(ga_SampleSource* in_sampleSrc, void* in_dst, gc_int32 in_numSamples);
+gc_int32 ga_sample_source_end(ga_SampleSource* in_sampleSrc);
+gc_int32 ga_sample_source_seek(ga_SampleSource* in_sampleSrc, gc_int32 in_sampleOffset);
+gc_int32 ga_sample_source_tell(ga_SampleSource* in_sampleSrc, gc_int32* out_totalSamples);
+void ga_sample_source_format(ga_SampleSource* in_sampleSrc, ga_Format* out_format);
+void ga_sample_source_destroy(ga_SampleSource* in_sampleSrc);
+
+/*
   Gorilla Sound
 */
 typedef struct ga_Sound {
