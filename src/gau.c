@@ -1,6 +1,5 @@
 #include "gorilla/ga.h"
 #include "gorilla/gau.h"
-#include "gorilla/ga_wav.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -8,50 +7,7 @@
 
 #include <assert.h>
 
-#include "vorbis/vorbisfile.h"
-
-/* Ogg Callbacks */
-typedef struct gau_OggCallbackData
-{
-  FILE* rawFile;
-  gc_int32 byteOffset;
-  gc_int32 rawFileSize;
-} gau_OggCallbackData;
-size_t gauX_oggRead(void *ptr, size_t size, size_t nmemb, void *datasource)
-{
-  gau_OggCallbackData* stream = (gau_OggCallbackData*)datasource;
-  FILE* f = stream->rawFile;
-  size_t ret = fread(ptr, size, nmemb, f);
-  return ret;
-}
-int gauX_oggSeek(void *datasource, ogg_int64_t offset, int whence)
-{
-  gau_OggCallbackData* stream = (gau_OggCallbackData*)datasource;
-  FILE* f = stream->rawFile;
-  switch(whence)
-  {
-  case SEEK_SET: return fseek(f, (gc_int32)(offset + stream->byteOffset), SEEK_SET);
-  case SEEK_CUR: return fseek(f, (gc_int32)offset, SEEK_CUR);
-  case SEEK_END: return fseek(f, (gc_int32)((stream->byteOffset + stream->rawFileSize) -  offset), SEEK_SET);
-  }
-  return -1;
-}
-long gauX_oggTell(void *datasource)
-{
-  gau_OggCallbackData* stream = (gau_OggCallbackData*)datasource;
-  FILE* f = stream->rawFile;
-  return ftell(f) - stream->byteOffset;
-}
-int gauX_oggClose(void *datasource)
-{
-  gau_OggCallbackData* stream = (gau_OggCallbackData*)datasource;
-  FILE* f = stream->rawFile;
-  fclose(f);
-  return 1;
-}
-
 /* Sound File-Loading Functions */
-
 ga_Sound* gauX_sound_file_from_source(ga_SampleSource* in_sampleSrc)
 {
   ga_Sound* ret = 0;
@@ -158,18 +114,8 @@ typedef struct ga_StreamContext_File {
   gc_int32 seek;
   gc_int32 tell;
   gc_Link tellJumps;
-  /* WAV-Specific Data */
-  union {
-    struct {
-      ga_WavData wavData;
-    } wav;
-    struct {
-      OggVorbis_File oggFile;
-      vorbis_info* oggInfo;
-      gau_OggCallbackData oggCallbackData;
-      gc_int32 pcmTotal;
-    } ogg;
-  };
+  ga_DataSource* dataSrc;
+  ga_SampleSource* sampleSrc;
 } ga_StreamContext_File;
 
 void gauX_sound_stream_file_produce(ga_HandleStream* in_stream);
@@ -178,76 +124,13 @@ void gauX_sound_stream_file_seek(ga_HandleStream* in_handle, gc_int32 in_sampleO
 gc_int32 gauX_sound_stream_file_tell(ga_HandleStream* in_handle, gc_int32 in_param);
 void gauX_sound_stream_file_destroy(ga_HandleStream* in_stream);
 
-ga_Handle* gauX_stream_file_wav(ga_Mixer* in_mixer,
-                                gc_int32 in_group,
-                                gc_int32 in_bufferSize,
-                                const char* in_filename,
-                                gc_uint32 in_byteOffset,
-                                ga_StreamContext_File* in_context)
+ga_Handle* gauX_stream_file(ga_Mixer* in_mixer,
+                            gc_int32 in_group,
+                            gc_int32 in_bufferSize,
+                            ga_StreamContext_File* in_context)
 {
   ga_Format fmt;
-  gc_int32 validHdr;
-  ga_StreamContext_File* context = in_context;
-  validHdr = gaX_sound_load_wav_header(in_filename, in_byteOffset, &context->wav.wavData);
-  if(validHdr != GC_SUCCESS)
-    return 0;
-  fseek(context->file, context->wav.wavData.dataOffset, SEEK_SET);
-  fmt.bitsPerSample = context->wav.wavData.bitsPerSample;
-  fmt.numChannels = context->wav.wavData.channels;
-  fmt.sampleRate = context->wav.wavData.sampleRate;
-  return ga_handle_createStream(in_mixer,
-                                in_group,
-                                in_bufferSize,
-                                &fmt,
-                                &gauX_sound_stream_file_produce,
-                                &gauX_sound_stream_file_consume,
-                                &gauX_sound_stream_file_seek,
-                                &gauX_sound_stream_file_tell,
-                                &gauX_sound_stream_file_destroy,
-                                context);
-}
-
-ga_Handle* gauX_stream_file_ogg(ga_Mixer* in_mixer,
-                                gc_int32 in_group,
-                                gc_int32 in_bufferSize,
-                                const char* in_filename,
-                                gc_uint32 in_byteOffset,
-                                ga_StreamContext_File* in_context)
-{
-  gc_int32 endian = 0; /* 0 is little endian (aka x86), 1 is big endian */
-  gc_int32 bytesPerSample = 2;
-  gc_int32 totalBytes = 0;
-  ga_Format fmt;
-  gc_int32 validFile;
-  gc_int32 retVal;
-  ov_callbacks oggCallbacks;
-  oggCallbacks.read_func = &gauX_oggRead;
-  oggCallbacks.seek_func = &gauX_oggSeek;
-  oggCallbacks.tell_func = &gauX_oggTell;
-  oggCallbacks.close_func = &gauX_oggClose;
-  fseek(in_context->file, 0, SEEK_END);
-  in_context->ogg.oggCallbackData.rawFileSize = ftell(in_context->file);
-  fseek(in_context->file, 0, SEEK_SET);
-  clearerr(in_context->file);
-  in_context->ogg.oggCallbackData.rawFile = in_context->file;
-  in_context->ogg.oggCallbackData.byteOffset = in_byteOffset;
-  retVal = ov_open_callbacks(&in_context->ogg.oggCallbackData, &in_context->ogg.oggFile, 0, 0, oggCallbacks);
-  if(retVal)
-    return 0;
-  in_context->ogg.oggInfo = ov_info(&in_context->ogg.oggFile, -1);
-  ov_pcm_seek(&in_context->ogg.oggFile, 0); /* Seek fixes some poorly-formatted oggs. */
-  /* TODO: Verify that ov_pcm_total() == actual number of samples (in debug) */
-  in_context->ogg.pcmTotal = (gc_int32)ov_pcm_total(&in_context->ogg.oggFile, -1);
-  validFile = in_context->ogg.oggInfo->channels <= 2;
-  if(!validFile)
-  {
-    ov_clear(&in_context->ogg.oggFile);
-    in_context->file = 0;
-    return 0;
-  }
-  fmt.bitsPerSample = 16;
-  fmt.numChannels = in_context->ogg.oggInfo->channels;
-  fmt.sampleRate = in_context->ogg.oggInfo->rate;
+  ga_sample_source_format(in_context->sampleSrc, &fmt);
   return ga_handle_createStream(in_mixer,
     in_group,
     in_bufferSize,
@@ -258,6 +141,58 @@ ga_Handle* gauX_stream_file_ogg(ga_Mixer* in_mixer,
     &gauX_sound_stream_file_tell,
     &gauX_sound_stream_file_destroy,
     in_context);
+}
+
+ga_Handle* gauX_stream_file_wav(ga_Mixer* in_mixer,
+                                gc_int32 in_group,
+                                gc_int32 in_bufferSize,
+                                const char* in_filename,
+                                gc_uint32 in_byteOffset,
+                                ga_StreamContext_File* in_context)
+{
+  ga_Handle* ret = 0;
+  in_context->sampleSrc = 0;
+  in_context->dataSrc = gau_data_source_create_file_arc(in_filename, in_byteOffset, -1);
+  if(in_context->dataSrc)
+  {
+    in_context->sampleSrc = gau_sample_source_create_wav(in_context->dataSrc);
+    if(in_context->sampleSrc)
+      ret = gauX_stream_file(in_mixer, in_group, in_bufferSize, in_context);
+  }
+  if(!ret)
+  {
+    if(in_context->sampleSrc)
+      ga_sample_source_destroy(in_context->sampleSrc);
+    if(in_context->dataSrc)
+      ga_data_source_destroy(in_context->dataSrc);
+  }
+  return ret;
+}
+
+ga_Handle* gauX_stream_file_ogg(ga_Mixer* in_mixer,
+                                gc_int32 in_group,
+                                gc_int32 in_bufferSize,
+                                const char* in_filename,
+                                gc_uint32 in_byteOffset,
+                                ga_StreamContext_File* in_context)
+{
+  ga_Handle* ret = 0;
+  in_context->sampleSrc = 0;
+  in_context->dataSrc = gau_data_source_create_file_arc(in_filename, in_byteOffset, -1);
+  if(in_context->dataSrc)
+  {
+    in_context->sampleSrc = gau_sample_source_create_ogg(in_context->dataSrc);
+    if(in_context->sampleSrc)
+      ret = gauX_stream_file(in_mixer, in_group, in_bufferSize, in_context);
+  }
+  if(!ret)
+  {
+    if(in_context->sampleSrc)
+      ga_sample_source_destroy(in_context->sampleSrc);
+    if(in_context->dataSrc)
+      ga_data_source_destroy(in_context->dataSrc);
+  }
+  return ret;
 }
 
 ga_Handle* gau_stream_file(ga_Mixer* in_mixer,
@@ -303,76 +238,6 @@ ga_Handle* gau_stream_file(ga_Mixer* in_mixer,
   gcX_ops->freeFunc(context->filename);
   gcX_ops->freeFunc(context);
   return 0;
-}
-
-gc_int32 gauX_buffer_read_wav_into_buffers(gc_CircBuffer* in_buffer, gc_int32 in_bytes,
-                                           FILE* in_file)
-{
-  void* dataA;
-  void* dataB;
-  gc_uint32 sizeA;
-  gc_uint32 sizeB;
-  gc_int32 numBuffers;
-  gc_CircBuffer* b = in_buffer;
-  gc_int32 bytesToRead = in_bytes;
-  numBuffers = gc_buffer_getFree(b, bytesToRead, &dataA, &sizeA, &dataB, &sizeB);
-  if(numBuffers >= 1)
-  {
-    fread(dataA, 1, sizeA, in_file); /* TODO: Is this endian-safe? */
-    if(numBuffers == 2)
-      fread(dataB, 1, sizeB, in_file); /* TODO: Is this endian-safe? */
-  }
-  b->nextFree += bytesToRead;
-  return bytesToRead;
-}
-
-gc_int32 gauX_read_oggvorbis(char* in_data, gc_int32 in_bytes,
-                             OggVorbis_File* in_file, vorbis_info* in_info)
-{
-  gc_int32 samplesLeft = in_bytes / in_info->channels / 2;
-  gc_uint32 numBytesRead;
-  gc_int32 totalBytes = 0;
-  do{
-    gc_int32 bitStream;
-    gc_float32** samples;
-    gc_int32 i;
-    gc_int16* dst;
-    gc_int32 samplesRead = ov_read_float(in_file, &samples, samplesLeft, &bitStream);
-    samplesLeft -= samplesRead;
-    numBytesRead = samplesRead * in_info->channels * 2;
-    dst = (gc_int16*)(in_data + totalBytes);
-    totalBytes += numBytesRead;
-    for(i = 0; i < samplesRead; ++i)
-    {
-      gc_int32 channel;
-      for(channel = 0; channel < in_info->channels; ++channel, ++dst)
-        *dst = (gc_int16)(samples[channel][i] * 32767.0f);
-    }
-  } while (numBytesRead > 0 && totalBytes <= in_bytes && samplesLeft);
-  return totalBytes;
-}
-
-gc_int32 gauX_buffer_read_ogg_into_buffers(gc_CircBuffer* in_buffer, gc_int32 in_bytes,
-                                       OggVorbis_File* in_file, vorbis_info* in_info)
-{
-  void* dataA;
-  void* dataB;
-  gc_uint32 sizeA = 0;
-  gc_uint32 sizeB = 0;
-  gc_int32 numBuffers;
-  gc_int32 numWritten = 0;
-  gc_CircBuffer* b = in_buffer;
-  numBuffers = gc_buffer_getFree(b, in_bytes, &dataA, &sizeA, &dataB, &sizeB);
-  if(numBuffers >= 1)
-  {
-    numWritten = gauX_read_oggvorbis(dataA, sizeA, in_file, in_info);
-    if(numBuffers == 2 && numWritten == sizeA)
-    {
-      numWritten += gauX_read_oggvorbis(dataB, sizeB, in_file, in_info);
-    }
-  }
-  b->nextFree += numWritten;
-  return numWritten;
 }
 
 typedef struct ga_TellJumpData {
@@ -436,6 +301,32 @@ void gauX_sound_stream_clearTellJumps(gc_Link* in_head)
 }
 
 /* Complex */
+gc_int32 gauX_read_samples_into_buffers(gc_CircBuffer* in_buffer,
+                                        gc_int32 in_samples,
+                                        ga_SampleSource* in_sampleSrc)
+{
+  void* dataA;
+  void* dataB;
+  gc_uint32 sizeA = 0;
+  gc_uint32 sizeB = 0;
+  gc_int32 numBuffers;
+  gc_int32 numWritten = 0;
+  ga_Format fmt;
+  gc_int32 sampleSize;
+  gc_CircBuffer* b = in_buffer;
+  ga_sample_source_format(in_sampleSrc, &fmt);
+  sampleSize = ga_format_sampleSize(&fmt);
+  numBuffers = gc_buffer_getFree(b, in_samples * sampleSize, &dataA, &sizeA, &dataB, &sizeB);
+  if(numBuffers >= 1)
+  {
+    numWritten = ga_sample_source_read(in_sampleSrc, dataA, sizeA / sampleSize);
+    if(numBuffers == 2 && numWritten == sizeA)
+      numWritten += ga_sample_source_read(in_sampleSrc, dataB, sizeB / sampleSize);
+  }
+  gc_buffer_produce(b, numWritten * sampleSize);
+  return numWritten;
+}
+
 void gauX_sound_stream_file_produce(ga_HandleStream* in_handle)
 {
   ga_StreamContext_File* context = (ga_StreamContext_File*)in_handle->streamContext;
@@ -463,22 +354,7 @@ void gauX_sound_stream_file_produce(ga_HandleStream* in_handle)
       context->tell = samplePos;
       context->seek = -1;
       context->nextSample = samplePos;
-      switch(context->fileFormat)
-      {
-      case GA_FILE_FORMAT_WAV:
-        {
-          gc_int32 totalSamples = context->wav.wavData.dataSize / sampleSize;
-          samplePos = samplePos > totalSamples ? 0 : samplePos;
-          fseek(context->file, context->wav.wavData.dataOffset + samplePos * sampleSize, SEEK_SET);
-          break;
-        }
-      case GA_FILE_FORMAT_OGG:
-        {
-          /* TODO: Make sure we're not seeking to an invalid location */
-          ov_pcm_seek(&context->ogg.oggFile, samplePos);
-          break;
-        }
-      }
+      ga_sample_source_seek(context->sampleSrc, samplePos);
       gc_buffer_consume(h->buffer, gc_buffer_bytesAvail(h->buffer)); /* Clear buffer */
       gauX_sound_stream_clearTellJumps(&context->tellJumps); /* Clear tell-jump list */
     }
@@ -494,40 +370,14 @@ void gauX_sound_stream_file_produce(ga_HandleStream* in_handle)
       (loopEnd - context->nextSample) * sampleSize:
       bytesFree;
     bytesToWrite = bytesToWrite > bytesFree ? bytesFree : bytesToWrite;
-    switch(context->fileFormat)
-    {
-    case GA_FILE_FORMAT_WAV:
-      {
-        gc_int32 wavAvail = context->wav.wavData.dataSize - context->nextSample * sampleSize;
-        gc_int32 bytesToRead = bytesToWrite > wavAvail ? wavAvail : bytesToWrite;
-        bytesWritten = gauX_buffer_read_wav_into_buffers(b, bytesToRead, context->file);
-        break;
-      }
-    case GA_FILE_FORMAT_OGG:
-      {
-        bytesWritten = gauX_buffer_read_ogg_into_buffers(b, bytesToWrite, &context->ogg.oggFile, context->ogg.oggInfo);
-        break;
-      }
-    }
+    bytesWritten = gauX_read_samples_into_buffers(b, bytesToWrite / sampleSize, context->sampleSrc) * sampleSize;
     bytesFree -= bytesWritten;
     context->nextSample += bytesWritten / sampleSize;
-    if(bytesWritten < bytesToWrite || (loop && context->nextSample == loopEnd))
+    if((bytesWritten < bytesToWrite && ga_sample_source_end(context->sampleSrc)) || (loop && context->nextSample == loopEnd))
     {
       if(loop)
       {
-        switch(context->fileFormat)
-        {
-        case GA_FILE_FORMAT_WAV:
-          {
-            fseek(context->file, context->wav.wavData.dataOffset + loopStart * sampleSize, SEEK_SET);
-            break;
-          }
-        case GA_FILE_FORMAT_OGG:
-          {
-            ov_pcm_seek(&context->ogg.oggFile, 0);
-            break;
-          }
-        }
+        ga_sample_source_seek(context->sampleSrc, loopStart);
         gc_mutex_unlock(h->consumeMutex);
         gc_mutex_lock(context->seekMutex);
         /* Add tell jump */
@@ -575,22 +425,9 @@ gc_int32 gauX_sound_stream_file_tell(ga_HandleStream* in_handle, gc_int32 in_par
   gc_int32 ret = -1;
   if(in_param == GA_TELL_PARAM_TOTAL)
   {
-    switch(context->fileFormat)
-    {
-    case GA_FILE_FORMAT_WAV:
-      {
-        gc_int32 sampleSize = ga_format_sampleSize(&in_handle->format);
-        ret = context->wav.wavData.dataSize / sampleSize;
-        break;
-      }
-    case GA_FILE_FORMAT_OGG:
-      {
-        gc_int32 sampleSize = ga_format_sampleSize(&in_handle->format);
-        gc_int32 totalSamples = context->ogg.pcmTotal;
-        ret = totalSamples;
-        break;
-      }
-    }
+    gc_int32 totalSamples;
+    ga_sample_source_tell(context->sampleSrc, &totalSamples);
+    ret = totalSamples;
   }
   else
   {
@@ -606,19 +443,8 @@ void gauX_sound_stream_file_destroy(ga_HandleStream* in_handle)
   gc_mutex_destroy(context->seekMutex);
   gauX_sound_stream_clearTellJumps(&context->tellJumps);
   gcX_ops->freeFunc(context->filename);
-  switch(context->fileFormat)
-  {
-  case GA_FILE_FORMAT_WAV:
-    {
-      fclose(context->file);
-      break;
-    }
-  case GA_FILE_FORMAT_OGG:
-    {
-      ov_clear(&context->ogg.oggFile);
-      break;
-    }
-  }
+  ga_sample_source_destroy(context->sampleSrc);
+  ga_data_source_destroy(context->dataSrc);
 }
 
 gc_result gau_sound_file_format(const char* in_filename,
@@ -627,61 +453,28 @@ gc_result gau_sound_file_format(const char* in_filename,
                                 ga_Format* out_format)
 {
   gc_result ret = GC_ERROR_GENERIC;
-  switch(in_fileFormat)
+  ga_DataSource* dataSrc;
+  dataSrc = gau_data_source_create_file_arc(in_filename, in_byteOffset, -1);
+  if(dataSrc)
   {
-  case GA_FILE_FORMAT_WAV:
+    ga_SampleSource* sampleSrc;
+    switch(in_fileFormat)
     {
-      ga_WavData wavData;
-      ret = gaX_sound_load_wav_header(in_filename, in_byteOffset, &wavData);
-      if(ret == GC_SUCCESS)
-      {
-        out_format->bitsPerSample = wavData.bitsPerSample;
-        out_format->numChannels = wavData.channels;
-        out_format->sampleRate = wavData.sampleRate;
-      }
+    case GA_FILE_FORMAT_WAV:
+      sampleSrc = gau_sample_source_create_wav(dataSrc);
+      break;
+    case GA_FILE_FORMAT_OGG:
+      sampleSrc = gau_sample_source_create_ogg(dataSrc);
       break;
     }
-  case GA_FILE_FORMAT_OGG:
+    if(sampleSrc)
     {
-      vorbis_info* oggInfo;
-      OggVorbis_File oggFile;
-      gc_int32 validFile;
-      gc_int32 retVal = 0;
-      gau_OggCallbackData oggCallbackData;
-      ov_callbacks oggCallbacks;
-      FILE* rawFile = fopen(in_filename, "rb");
-      if(!rawFile)
-        break;
-      oggCallbacks.read_func = &gauX_oggRead;
-      oggCallbacks.seek_func = &gauX_oggSeek;
-      oggCallbacks.tell_func = &gauX_oggTell;
-      oggCallbacks.close_func = &gauX_oggClose;
-      fseek(rawFile, 0, SEEK_END);
-      oggCallbackData.rawFileSize = ftell(rawFile);
-      fseek(rawFile, 0, SEEK_SET);
-      clearerr(rawFile);
-      oggCallbackData.rawFile = rawFile;
-      oggCallbackData.byteOffset = in_byteOffset;
-      retVal = ov_open_callbacks(&oggCallbackData, &oggFile, 0, 0, oggCallbacks);
-      if(!retVal)
-      {
-        oggInfo = ov_info(&oggFile, -1);
-        ov_pcm_seek(&oggFile, 0); /* Seek fixes some poorly-formatted oggs. */
-        validFile = oggInfo->channels <= 2;
-        if(validFile)
-        {
-          out_format->bitsPerSample = 2 * 8; /* always read oggs as 16-bit */
-          out_format->numChannels = oggInfo->channels;
-          out_format->sampleRate = oggInfo->rate;
-          ret = GC_SUCCESS;
-        }
-        ov_clear(&oggFile);
-      }
-      else
-        fclose(rawFile);
-      break;
+      ga_sample_source_format(sampleSrc, out_format);
+      ga_sample_source_destroy(sampleSrc);
+      ret = GC_SUCCESS;
     }
   }
+  ga_data_source_destroy(dataSrc);
   return ret;
 }
 
@@ -813,6 +606,14 @@ ga_DataSource* gau_data_source_create_file_arc(const char* in_filename, gc_int32
 }
 
 /* WAV Sample Source */
+typedef struct ga_WavData
+{
+  gc_int32 fileSize;
+  gc_int16 fmtTag, channels, blockAlign, bitsPerSample;
+  gc_int32 fmtSize, sampleRate, bytesPerSec;
+  gc_int32 dataOffset, dataSize;
+} ga_WavData;
+
 gc_result gauX_sample_source_wav_load_header(ga_DataSource* in_dataSrc, ga_WavData* out_wavData)
 {
   /* TODO: Make this work with non-blocking reads? Need to get this data... */
@@ -946,6 +747,8 @@ ga_SampleSource* gau_sample_source_create_wav(ga_DataSource* in_dataSrc)
 }
 
 /* OGG Sample Source */
+#include "vorbis/vorbisfile.h"
+
 typedef struct gau_OggDataSourceCallbackData
 {
   ga_DataSource* dataSrc;

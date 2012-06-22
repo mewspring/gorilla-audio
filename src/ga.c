@@ -1,6 +1,5 @@
 #include "gorilla/ga.h"
 
-#include "gorilla/ga_wav.h"
 #include "gorilla/ga_openal.h"
 
 #include <stdio.h>
