@@ -60,6 +60,14 @@ gc_result ga_device_close(ga_Device* in_device);
 /*
   Data Source Structure
 */
+/*
+  DATASOURCE/SAMPLESOURCE MEMORY MANAGEMENT NOTES:
+  ga_DataSource and ga_SampleSource use reference counting to manage memory.
+  When creating a source, you must call *_source_init() (to init refcount).
+  When you are finished using a source, call *_source_release().
+  To add a new strong reference to the source, call *_source_acquire().
+  To remove that strong reference, again, call *_source_release().
+*/
 #define GA_SEEK_ORIGIN_SET 0
 #define GA_SEEK_ORIGIN_CUR 1
 #define GA_SEEK_ORIGIN_END 2
@@ -74,12 +82,15 @@ typedef struct ga_DataSource {
   tDataSourceFunc_Seek seekFunc; /* OPTIONAL */
   tDataSourceFunc_Tell tellFunc; /* OPTIONAL */
   tDataSourceFunc_Close closeFunc; /* OPTIONAL */
+  gc_int32 refCount;
 } ga_DataSource;
 
+void ga_data_source_init(ga_DataSource* in_dataSrc);
 gc_int32 ga_data_source_read(ga_DataSource* in_dataSrc, void* in_dst, gc_int32 in_size, gc_int32 in_count);
 gc_int32 ga_data_source_seek(ga_DataSource* in_dataSrc, gc_int32 in_offset, gc_int32 in_origin);
 gc_int32 ga_data_source_tell(ga_DataSource* in_dataSrc);
-void ga_data_source_destroy(ga_DataSource* in_dataSrc);
+void ga_data_source_acquire(ga_DataSource* in_dataSrc);
+void ga_data_source_release(ga_DataSource* in_dataSrc);
 
 /*
   Sample Source Structure
@@ -97,14 +108,17 @@ typedef struct ga_SampleSource {
   tSampleSourceFunc_Tell tellFunc; /* OPTIONAL */
   tSampleSourceFunc_Close closeFunc; /* OPTIONAL */
   ga_Format format;
+  gc_int32 refCount;
 } ga_SampleSource;
 
+void ga_sample_source_init(ga_SampleSource* in_sampleSrc);
 gc_int32 ga_sample_source_read(ga_SampleSource* in_sampleSrc, void* in_dst, gc_int32 in_numSamples);
 gc_int32 ga_sample_source_end(ga_SampleSource* in_sampleSrc);
 gc_int32 ga_sample_source_seek(ga_SampleSource* in_sampleSrc, gc_int32 in_sampleOffset);
 gc_int32 ga_sample_source_tell(ga_SampleSource* in_sampleSrc, gc_int32* out_totalSamples);
 void ga_sample_source_format(ga_SampleSource* in_sampleSrc, ga_Format* out_format);
-void ga_sample_source_destroy(ga_SampleSource* in_sampleSrc);
+void ga_sample_source_acquire(ga_SampleSource* in_sampleSrc);
+void ga_sample_source_release(ga_SampleSource* in_sampleSrc);
 
 /*
   Gorilla Sound

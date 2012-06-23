@@ -23,13 +23,13 @@ ga_Handle* gau_stream_file(ga_Mixer* in_mixer,
                            gc_uint32 in_byteOffset);
 
 ga_Sound* gau_sound_file(const char* in_filename,
-                        gc_int32 in_fileFormat,
-                        gc_uint32 in_byteOffset);
+                         gc_int32 in_fileFormat,
+                         gc_uint32 in_byteOffset);
 
-gc_result gau_sound_file_format(const char* in_filename,
-                                gc_int32 in_fileFormat,
-                                gc_uint32 in_byteOffset,
-                                ga_Format* out_format);
+ga_Handle* gau_stream_sample_source(ga_Mixer* in_mixer,
+                                    gc_int32 in_group,
+                                    gc_int32 in_bufferSize,
+                                    ga_SampleSource* in_sampleSrc);
 
 /* Concrete Implementations */
 ga_DataSource* gau_data_source_create_file(const char* in_filename);

@@ -15,6 +15,11 @@
 
  ********************************************************************/
 
+/* Patch to hide all the warning-spam in VS2008 */
+#ifdef _WIN32
+#pragma warning(disable:4244)
+#endif /* _WIN32 */
+
 #include <stdlib.h>
 #include <stdio.h>
 #include <errno.h>

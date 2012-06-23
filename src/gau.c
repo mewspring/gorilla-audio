@@ -62,12 +62,12 @@ ga_Sound* gauX_sound_file_wav(const char* in_filename, gc_uint32 in_byteOffset)
   if(dataSrc)
   {
     sampleSrc = gau_sample_source_create_wav(dataSrc);
+    ga_data_source_release(dataSrc);
     if(sampleSrc)
     {
       ret = gauX_sound_file_from_source(sampleSrc);
-      ga_sample_source_destroy(sampleSrc);
+      ga_sample_source_release(sampleSrc);
     }
-    ga_data_source_destroy(dataSrc);
   }
   return ret;
 }
@@ -80,12 +80,12 @@ ga_Sound* gauX_sound_file_ogg(const char* in_filename, gc_uint32 in_byteOffset)
   if(dataSrc)
   {
     sampleSrc = gau_sample_source_create_ogg(dataSrc);
+    ga_data_source_release(dataSrc);
     if(sampleSrc)
     {
       ret = gauX_sound_file_from_source(sampleSrc);
-      ga_sample_source_destroy(sampleSrc);
+      ga_sample_source_release(sampleSrc);
     }
-    ga_data_source_destroy(dataSrc);
   }
   return ret;
 }
@@ -105,16 +105,11 @@ ga_Sound* gau_sound_file(const char* in_filename, gc_int32 in_fileFormat,
 
 /* Streaming Functions */
 typedef struct ga_StreamContext_File {
-  char* filename;
-  gc_int32 fileFormat;
-  gc_uint32 byteOffset;
   gc_int32 nextSample;
-  FILE* file;
   gc_Mutex* seekMutex;
   gc_int32 seek;
   gc_int32 tell;
   gc_Link tellJumps;
-  ga_DataSource* dataSrc;
   ga_SampleSource* sampleSrc;
 } ga_StreamContext_File;
 
@@ -143,58 +138,30 @@ ga_Handle* gauX_stream_file(ga_Mixer* in_mixer,
     in_context);
 }
 
-ga_Handle* gauX_stream_file_wav(ga_Mixer* in_mixer,
-                                gc_int32 in_group,
-                                gc_int32 in_bufferSize,
-                                const char* in_filename,
-                                gc_uint32 in_byteOffset,
-                                ga_StreamContext_File* in_context)
+ga_Handle* gau_stream_sample_source(ga_Mixer* in_mixer,
+                                    gc_int32 in_group,
+                                    gc_int32 in_bufferSize,
+                                    ga_SampleSource* in_sampleSrc)
 {
   ga_Handle* ret = 0;
-  in_context->sampleSrc = 0;
-  in_context->dataSrc = gau_data_source_create_file_arc(in_filename, in_byteOffset, -1);
-  if(in_context->dataSrc)
-  {
-    in_context->sampleSrc = gau_sample_source_create_wav(in_context->dataSrc);
-    if(in_context->sampleSrc)
-      ret = gauX_stream_file(in_mixer, in_group, in_bufferSize, in_context);
-  }
+  ga_StreamContext_File* context;
+  context = (ga_StreamContext_File*)gcX_ops->allocFunc(sizeof(ga_StreamContext_File));
+  context->seek = -1;
+  context->tell = 0;
+  context->nextSample = 0;
+  gc_list_head(&context->tellJumps);
+  context->seekMutex = gc_mutex_create();
+
+  ga_sample_source_acquire(in_sampleSrc);
+  context->sampleSrc = in_sampleSrc;
+  ret = gauX_stream_file(in_mixer, in_group, in_bufferSize, context);
   if(!ret)
   {
-    if(in_context->sampleSrc)
-      ga_sample_source_destroy(in_context->sampleSrc);
-    if(in_context->dataSrc)
-      ga_data_source_destroy(in_context->dataSrc);
+    ga_sample_source_release(in_sampleSrc);
+    gcX_ops->freeFunc(context);
   }
   return ret;
 }
-
-ga_Handle* gauX_stream_file_ogg(ga_Mixer* in_mixer,
-                                gc_int32 in_group,
-                                gc_int32 in_bufferSize,
-                                const char* in_filename,
-                                gc_uint32 in_byteOffset,
-                                ga_StreamContext_File* in_context)
-{
-  ga_Handle* ret = 0;
-  in_context->sampleSrc = 0;
-  in_context->dataSrc = gau_data_source_create_file_arc(in_filename, in_byteOffset, -1);
-  if(in_context->dataSrc)
-  {
-    in_context->sampleSrc = gau_sample_source_create_ogg(in_context->dataSrc);
-    if(in_context->sampleSrc)
-      ret = gauX_stream_file(in_mixer, in_group, in_bufferSize, in_context);
-  }
-  if(!ret)
-  {
-    if(in_context->sampleSrc)
-      ga_sample_source_destroy(in_context->sampleSrc);
-    if(in_context->dataSrc)
-      ga_data_source_destroy(in_context->dataSrc);
-  }
-  return ret;
-}
-
 ga_Handle* gau_stream_file(ga_Mixer* in_mixer,
                            gc_int32 in_group,
                            gc_int32 in_bufferSize,
@@ -202,42 +169,19 @@ ga_Handle* gau_stream_file(ga_Mixer* in_mixer,
                            gc_int32 in_fileFormat,
                            gc_uint32 in_byteOffset)
 {
-  ga_StreamContext_File* context;
-  context = (ga_StreamContext_File*)gcX_ops->allocFunc(sizeof(ga_StreamContext_File));
-  context->filename = gcX_ops->allocFunc(strlen(in_filename) + 1);
-  strcpy(context->filename, in_filename);
-  context->fileFormat = in_fileFormat;
-  context->byteOffset = in_byteOffset;
-  context->file = fopen(context->filename, "rb");
-  context->seek = -1;
-  context->tell = 0;
-  context->nextSample = 0;
-  gc_list_head(&context->tellJumps);
-  if(context->file)
+  ga_Handle* ret = 0;
+  ga_DataSource* dataSrc = gau_data_source_create_file_arc(in_filename, in_byteOffset, 0);
+  if(dataSrc)
   {
-    context->seekMutex = gc_mutex_create();
-    switch(in_fileFormat)
+    ga_SampleSource* sampleSrc = gau_sample_source_create_wav(dataSrc);
+    ga_data_source_release(dataSrc);
+    if(sampleSrc)
     {
-      case GA_FILE_FORMAT_WAV:
-        {
-          ga_Handle* ret = gauX_stream_file_wav(in_mixer, in_group, in_bufferSize, in_filename, in_byteOffset, context);
-          if(ret)
-            return ret;
-        }
-      case GA_FILE_FORMAT_OGG:
-        {
-          ga_Handle* ret = gauX_stream_file_ogg(in_mixer, in_group, in_bufferSize, in_filename, in_byteOffset, context);
-          if(ret)
-            return ret;
-        }
+      ret = gau_stream_sample_source(in_mixer, in_group, in_bufferSize, sampleSrc);
+      ga_sample_source_release(sampleSrc);
     }
-    gc_mutex_destroy(context->seekMutex);
-    fclose(context->file);
   }
-
-  gcX_ops->freeFunc(context->filename);
-  gcX_ops->freeFunc(context);
-  return 0;
+  return ret;
 }
 
 typedef struct ga_TellJumpData {
@@ -442,40 +386,7 @@ void gauX_sound_stream_file_destroy(ga_HandleStream* in_handle)
   ga_StreamContext_File* context = (ga_StreamContext_File*)in_handle->streamContext;
   gc_mutex_destroy(context->seekMutex);
   gauX_sound_stream_clearTellJumps(&context->tellJumps);
-  gcX_ops->freeFunc(context->filename);
-  ga_sample_source_destroy(context->sampleSrc);
-  ga_data_source_destroy(context->dataSrc);
-}
-
-gc_result gau_sound_file_format(const char* in_filename,
-                                gc_int32 in_fileFormat,
-                                gc_uint32 in_byteOffset,
-                                ga_Format* out_format)
-{
-  gc_result ret = GC_ERROR_GENERIC;
-  ga_DataSource* dataSrc;
-  dataSrc = gau_data_source_create_file_arc(in_filename, in_byteOffset, -1);
-  if(dataSrc)
-  {
-    ga_SampleSource* sampleSrc;
-    switch(in_fileFormat)
-    {
-    case GA_FILE_FORMAT_WAV:
-      sampleSrc = gau_sample_source_create_wav(dataSrc);
-      break;
-    case GA_FILE_FORMAT_OGG:
-      sampleSrc = gau_sample_source_create_ogg(dataSrc);
-      break;
-    }
-    if(sampleSrc)
-    {
-      ga_sample_source_format(sampleSrc, out_format);
-      ga_sample_source_destroy(sampleSrc);
-      ret = GC_SUCCESS;
-    }
-  }
-  ga_data_source_destroy(dataSrc);
-  return ret;
+  ga_sample_source_release(context->sampleSrc);
 }
 
 /* File-Based Data Source */
@@ -517,6 +428,7 @@ void gauX_data_source_file_close(void* in_context)
 ga_DataSource* gau_data_source_create_file(const char* in_filename)
 {
   gau_DataSourceFile* ret = gcX_ops->allocFunc(sizeof(gau_DataSourceFile));
+  ga_data_source_init(&ret->dataSrc);
   ret->dataSrc.readFunc = &gauX_data_source_file_read;
   ret->dataSrc.seekFunc = &gauX_data_source_file_seek;
   ret->dataSrc.tellFunc = &gauX_data_source_file_tell;
@@ -589,6 +501,7 @@ void gauX_data_source_file_arc_close(void* in_context)
 ga_DataSource* gau_data_source_create_file_arc(const char* in_filename, gc_int32 in_offset, gc_int32 in_size)
 {
   gau_DataSourceFileArc* ret = gcX_ops->allocFunc(sizeof(gau_DataSourceFileArc));
+  ga_data_source_init(&ret->dataSrc);
   ret->dataSrc.readFunc = &gauX_data_source_file_arc_read;
   ret->dataSrc.seekFunc = &gauX_data_source_file_arc_seek;
   ret->dataSrc.tellFunc = &gauX_data_source_file_arc_tell;
@@ -681,7 +594,7 @@ typedef struct gau_SampleSourceWav {
 
 gc_int32 gauX_sample_source_wav_read(void* in_context, void* in_dst, gc_int32 in_numSamples)
 {
-  gau_SampleSourceWavContext* ctx = (gau_SampleSourceWavContext*)in_context;
+  gau_SampleSourceWavContext* ctx = &((gau_SampleSourceWav*)in_context)->context;
   gc_int32 numRead = 0;
   gc_int32 totalSamples = ctx->wavHeader.dataSize / ctx->sampleSize;
   if(ctx->pos + in_numSamples > totalSamples)
@@ -695,13 +608,13 @@ gc_int32 gauX_sample_source_wav_read(void* in_context, void* in_dst, gc_int32 in
 }
 gc_int32 gauX_sample_source_wav_end(void* in_context)
 {
-  gau_SampleSourceWavContext* ctx = (gau_SampleSourceWavContext*)in_context;
+  gau_SampleSourceWavContext* ctx = &((gau_SampleSourceWav*)in_context)->context;
   gc_int32 totalSamples = ctx->wavHeader.dataSize / ctx->sampleSize;
   return ctx->pos == totalSamples;
 }
 gc_int32 gauX_sample_source_wav_seek(void* in_context, gc_int32 in_sampleOffset)
 {
-  gau_SampleSourceWavContext* ctx = (gau_SampleSourceWavContext*)in_context;
+  gau_SampleSourceWavContext* ctx = &((gau_SampleSourceWav*)in_context)->context;
   gc_int32 ret = ga_data_source_seek(ctx->dataSrc, ctx->wavHeader.dataOffset + in_sampleOffset * ctx->sampleSize, GA_SEEK_ORIGIN_SET);
   if(ret >= 0)
     ctx->pos = in_sampleOffset;
@@ -709,26 +622,29 @@ gc_int32 gauX_sample_source_wav_seek(void* in_context, gc_int32 in_sampleOffset)
 }
 gc_int32 gauX_sample_source_wav_tell(void* in_context, gc_int32* out_totalSamples)
 {
-  gau_SampleSourceWavContext* ctx = (gau_SampleSourceWavContext*)in_context;
+  gau_SampleSourceWavContext* ctx = &((gau_SampleSourceWav*)in_context)->context;
   if(out_totalSamples)
     *out_totalSamples = ctx->wavHeader.dataSize / ctx->sampleSize;
   return ctx->pos;
 }
 void gauX_sample_source_wav_close(void* in_context)
 {
-  gau_SampleSourceWavContext* ctx = (gau_SampleSourceWavContext*)in_context;
+  gau_SampleSourceWavContext* ctx = &((gau_SampleSourceWav*)in_context)->context;
+  ga_data_source_release(ctx->dataSrc);
 }
 ga_SampleSource* gau_sample_source_create_wav(ga_DataSource* in_dataSrc)
 {
   gc_result validHeader;
   gau_SampleSourceWav* ret = gcX_ops->allocFunc(sizeof(gau_SampleSourceWav));
   gau_SampleSourceWavContext* ctx = &ret->context;
+  ga_sample_source_init(&ret->sampleSrc);
   ret->sampleSrc.readFunc = &gauX_sample_source_wav_read;
   ret->sampleSrc.endFunc = &gauX_sample_source_wav_end;
   ret->sampleSrc.seekFunc = &gauX_sample_source_wav_seek;
   ret->sampleSrc.tellFunc = &gauX_sample_source_wav_tell;
   ret->sampleSrc.closeFunc = &gauX_sample_source_wav_close;
   ctx->pos = 0;
+  ga_data_source_acquire(in_dataSrc);
   ctx->dataSrc = in_dataSrc;
   validHeader = gauX_sample_source_wav_load_header(in_dataSrc, &ctx->wavHeader);
   if(validHeader == GC_SUCCESS)
@@ -801,7 +717,7 @@ typedef struct gau_SampleSourceOgg {
 
 gc_int32 gauX_sample_source_ogg_read(void* in_context, void* in_dst, gc_int32 in_numSamples)
 {
-  gau_SampleSourceOggContext* ctx = (gau_SampleSourceOggContext*)in_context;
+  gau_SampleSourceOggContext* ctx = &((gau_SampleSourceOgg*)in_context)->context;
   gc_int32 samplesLeft = in_numSamples;
   gc_int32 samplesRead;
   gc_int32 totalSamples = 0;
@@ -830,19 +746,19 @@ gc_int32 gauX_sample_source_ogg_read(void* in_context, void* in_dst, gc_int32 in
 }
 gc_int32 gauX_sample_source_ogg_end(void* in_context)
 {
-  gau_SampleSourceOggContext* ctx = (gau_SampleSourceOggContext*)in_context;
+  gau_SampleSourceOggContext* ctx = &((gau_SampleSourceOgg*)in_context)->context;
   return ctx->endOfSamples;
 }
 gc_int32 gauX_sample_source_ogg_seek(void* in_context, gc_int32 in_sampleOffset)
 {
-  gau_SampleSourceOggContext* ctx = (gau_SampleSourceOggContext*)in_context;
+  gau_SampleSourceOggContext* ctx = &((gau_SampleSourceOgg*)in_context)->context;
   gc_int32 ret = ov_pcm_seek(&ctx->oggFile, in_sampleOffset);
   ctx->endOfSamples = 0;
   return ret;
 }
 gc_int32 gauX_sample_source_ogg_tell(void* in_context, gc_int32* out_totalSamples)
 {
-  gau_SampleSourceOggContext* ctx = (gau_SampleSourceOggContext*)in_context;
+  gau_SampleSourceOggContext* ctx = &((gau_SampleSourceOgg*)in_context)->context;
   /* TODO: Decide whether to support total samples for OGG files */
   if(out_totalSamples)
     *out_totalSamples = 0/*ov_pcm_total()*/;
@@ -850,7 +766,9 @@ gc_int32 gauX_sample_source_ogg_tell(void* in_context, gc_int32* out_totalSample
 }
 void gauX_sample_source_ogg_close(void* in_context)
 {
-  gau_SampleSourceWavContext* ctx = (gau_SampleSourceWavContext*)in_context;
+  gau_SampleSourceOggContext* ctx = &((gau_SampleSourceOgg*)in_context)->context;
+  ov_clear(&ctx->oggFile);
+  ga_data_source_release(ctx->dataSrc);
 }
 ga_SampleSource* gau_sample_source_create_ogg(ga_DataSource* in_dataSrc)
 {
@@ -861,11 +779,13 @@ ga_SampleSource* gau_sample_source_create_ogg(ga_DataSource* in_dataSrc)
   gc_int32 isValidOgg = 0;
   gc_int32 oggIsOpen;
   ov_callbacks oggCallbacks;
+  ga_sample_source_init(&ret->sampleSrc);
   ret->sampleSrc.readFunc = &gauX_sample_source_ogg_read;
   ret->sampleSrc.endFunc = &gauX_sample_source_ogg_end;
   ret->sampleSrc.seekFunc = &gauX_sample_source_ogg_seek;
   ret->sampleSrc.tellFunc = &gauX_sample_source_ogg_tell;
   ret->sampleSrc.closeFunc = &gauX_sample_source_ogg_close;
+  ga_data_source_acquire(in_dataSrc);
   ctx->dataSrc = in_dataSrc;
   ctx->endOfSamples = 0;
 
@@ -888,7 +808,10 @@ ga_SampleSource* gau_sample_source_create_ogg(ga_DataSource* in_dataSrc)
       ret->sampleSrc.format.sampleRate = ctx->oggInfo->rate;
     }
     else
+    {
       ov_clear(&ctx->oggFile);
+      ga_data_source_release(in_dataSrc);
+    }
   }
   if(!isValidOgg)
   {
