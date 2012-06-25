@@ -173,7 +173,11 @@ ga_Handle* gau_stream_file(ga_Mixer* in_mixer,
   ga_DataSource* dataSrc = gau_data_source_create_file_arc(in_filename, in_byteOffset, 0);
   if(dataSrc)
   {
-    ga_SampleSource* sampleSrc = gau_sample_source_create_wav(dataSrc);
+    ga_SampleSource* sampleSrc;
+    if(in_fileFormat == GA_FILE_FORMAT_WAV)
+      sampleSrc = gau_sample_source_create_wav(dataSrc);
+    else if(in_fileFormat == GA_FILE_FORMAT_OGG)
+      sampleSrc = gau_sample_source_create_ogg(dataSrc);
     ga_data_source_release(dataSrc);
     if(sampleSrc)
     {

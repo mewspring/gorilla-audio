@@ -97,6 +97,7 @@ void ga_data_source_release(ga_DataSource* in_dataSrc);
 */
 typedef gc_int32 (*tSampleSourceFunc_Read)(void* in_context, void* in_dst, gc_int32 in_numSamples);
 typedef gc_int32 (*tSampleSourceFunc_End)(void* in_context);
+typedef gc_int32 (*tSampleSourceFunc_Ready)(void* in_context, gc_int32 in_numSamples);
 typedef gc_int32 (*tSampleSourceFunc_Seek)(void* in_context, gc_int32 in_sampleOffset);
 typedef gc_int32 (*tSampleSourceFunc_Tell)(void* in_context, gc_int32* out_totalSamples);
 typedef void (*tSampleSourceFunc_Close)(void* in_context);
@@ -104,6 +105,7 @@ typedef void (*tSampleSourceFunc_Close)(void* in_context);
 typedef struct ga_SampleSource {
   tSampleSourceFunc_Read readFunc;
   tSampleSourceFunc_End endFunc;
+  tSampleSourceFunc_Ready readyFunc;
   tSampleSourceFunc_Seek seekFunc; /* OPTIONAL */
   tSampleSourceFunc_Tell tellFunc; /* OPTIONAL */
   tSampleSourceFunc_Close closeFunc; /* OPTIONAL */
@@ -114,6 +116,7 @@ typedef struct ga_SampleSource {
 void ga_sample_source_init(ga_SampleSource* in_sampleSrc);
 gc_int32 ga_sample_source_read(ga_SampleSource* in_sampleSrc, void* in_dst, gc_int32 in_numSamples);
 gc_int32 ga_sample_source_end(ga_SampleSource* in_sampleSrc);
+gc_int32 ga_sample_source_ready(ga_SampleSource* in_sampleSrc, gc_int32 in_numSamples);
 gc_int32 ga_sample_source_seek(ga_SampleSource* in_sampleSrc, gc_int32 in_sampleOffset);
 gc_int32 ga_sample_source_tell(ga_SampleSource* in_sampleSrc, gc_int32* out_totalSamples);
 void ga_sample_source_format(ga_SampleSource* in_sampleSrc, ga_Format* out_format);
@@ -193,6 +196,7 @@ typedef void (*ga_StreamDestroyFunc)(ga_HandleStream* in_handle);
 #define GA_HANDLE_TYPE_UNKNOWN 0
 #define GA_HANDLE_TYPE_STATIC 1
 #define GA_HANDLE_TYPE_STREAM 2
+#define GA_HANDLE_TYPE_SAMPLESOURCE 3
 
 typedef struct ga_HandleStatic {
   GA_HANDLE_HEADER
@@ -214,7 +218,15 @@ typedef struct ga_HandleStream {
   gc_Mutex* consumeMutex;
 } ga_HandleStream;
 
+typedef struct ga_HandleSampleSource {
+  GA_HANDLE_HEADER
+  ga_SampleSource* sampleSrc;
+  volatile gc_int32 finished;
+} ga_HandleSampleSource;
+
 ga_Handle* ga_handle_create(ga_Mixer* in_mixer, ga_Sound* in_sound);
+ga_Handle* ga_handle_createSampleSource(ga_Mixer* in_mixer,
+                                        ga_SampleSource* in_sampleSrc);
 ga_Handle* ga_handle_createStream(ga_Mixer* in_mixer,
                                   gc_int32 in_group,
                                   gc_int32 in_bufferSize,
@@ -247,7 +259,7 @@ gc_result ga_handle_getParami(ga_Handle* in_handle, gc_int32 in_param,
                               gc_int32* out_value);
 gc_result ga_handle_seek(ga_Handle* in_handle, gc_int32 in_sampleOffset);
 gc_int32 ga_handle_tell(ga_Handle* in_handle, gc_int32 in_param);
-ga_Format* ga_handle_format(ga_Handle* in_handle);
+void ga_handle_format(ga_Handle* in_handle, ga_Format* out_format);
 
 /*
   Gorilla Mixer
