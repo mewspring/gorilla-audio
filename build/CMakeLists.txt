@@ -69,12 +69,14 @@ include_directories(${INCLUDE_DIR})
 set(GORILLA_INCLUDE
   ${INCLUDE_DIR}/gorilla/ga.h
   ${INCLUDE_DIR}/gorilla/gau.h
+  ${INCLUDE_DIR}/gorilla/ga_stream.h
   ${INCLUDE_DIR}/gorilla/ga_openal.h
   )
   
 set(GORILLA_SRC
   ${SRC_DIR}/ga.c
   ${SRC_DIR}/gau.c
+  ${SRC_DIR}/ga_stream.c
   ${SRC_DIR}/ga_openal.c
   )
 

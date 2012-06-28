@@ -100,6 +100,8 @@ void ga_data_source_init(ga_DataSource* in_dataSrc)
   in_dataSrc->seekFunc = 0; 
   in_dataSrc->tellFunc = 0;
   in_dataSrc->closeFunc = 0;
+  in_dataSrc->flags = 0;
+  in_dataSrc->refMutex = gc_mutex_create();
 }
 gc_int32 ga_data_source_read(ga_DataSource* in_dataSrc, void* in_dst, gc_int32 in_size, gc_int32 in_count)
 {
@@ -124,6 +126,10 @@ gc_int32 ga_data_source_tell(ga_DataSource* in_dataSrc)
     return func(context);
   return -1;
 }
+gc_int32 ga_data_source_flags(ga_DataSource* in_dataSrc)
+{
+  return in_dataSrc->flags;
+}
 void gaX_data_source_destroy(ga_DataSource* in_dataSrc)
 {
   tDataSourceFunc_Close func = in_dataSrc->closeFunc;
@@ -131,16 +137,24 @@ void gaX_data_source_destroy(ga_DataSource* in_dataSrc)
   assert(in_dataSrc->refCount == 0);
   if(func)
     func(context);
+  gc_mutex_destroy(in_dataSrc->refMutex);
   gcX_ops->freeFunc(in_dataSrc);
 }
 void ga_data_source_acquire(ga_DataSource* in_dataSrc)
 {
+  gc_mutex_lock(in_dataSrc->refMutex);
   ++in_dataSrc->refCount;
+  gc_mutex_unlock(in_dataSrc->refMutex);
 }
 void ga_data_source_release(ga_DataSource* in_dataSrc)
 {
-  assert(in_dataSrc->refCount >= 0);
-  if(--in_dataSrc->refCount == 0)
+  gc_int32 refCount;
+  assert(in_dataSrc->refCount > 0);
+  gc_mutex_lock(in_dataSrc->refMutex);
+  --in_dataSrc->refCount;
+  refCount = in_dataSrc->refCount;
+  gc_mutex_unlock(in_dataSrc->refMutex);
+  if(refCount == 0)
     gaX_data_source_destroy(in_dataSrc);
 }
 
@@ -154,6 +168,8 @@ void ga_sample_source_init(ga_SampleSource* in_sampleSrc)
   in_sampleSrc->seekFunc = 0; 
   in_sampleSrc->tellFunc = 0;
   in_sampleSrc->closeFunc = 0;
+  in_sampleSrc->flags = 0;
+  in_sampleSrc->refMutex = gc_mutex_create();
 }
 gc_int32 ga_sample_source_read(ga_SampleSource* in_sampleSrc, void* in_dst, gc_int32 in_numSamples)
 {
@@ -183,6 +199,10 @@ gc_int32 ga_sample_source_tell(ga_SampleSource* in_sampleSrc, gc_int32* out_tota
   *out_totalSamples = -1;
   return -1;
 }
+gc_int32 ga_sample_source_flags(ga_SampleSource* in_sampleSrc)
+{
+  return in_sampleSrc->flags;
+}
 void ga_sample_source_format(ga_SampleSource* in_sampleSrc, ga_Format* out_format)
 {
   memcpy(out_format, &in_sampleSrc->format, sizeof(ga_Format));
@@ -192,16 +212,24 @@ void gaX_sample_source_destroy(ga_SampleSource* in_sampleSrc)
   tSampleSourceFunc_Close func = in_sampleSrc->closeFunc;
   if(func)
     func(in_sampleSrc);
+  gc_mutex_destroy(in_sampleSrc->refMutex);
   gcX_ops->freeFunc(in_sampleSrc);
 }
 void ga_sample_source_acquire(ga_SampleSource* in_sampleSrc)
 {
+  gc_mutex_lock(in_sampleSrc->refMutex);
   ++in_sampleSrc->refCount;
+  gc_mutex_unlock(in_sampleSrc->refMutex);
 }
 void ga_sample_source_release(ga_SampleSource* in_sampleSrc)
 {
-  assert(in_sampleSrc->refCount >= 0);
-  if(--in_sampleSrc->refCount == 0)
+  gc_int32 refCount;
+  assert(in_sampleSrc->refCount > 0);
+  gc_mutex_lock(in_sampleSrc->refMutex);
+  --in_sampleSrc->refCount;
+  refCount = in_sampleSrc->refCount;
+  gc_mutex_unlock(in_sampleSrc->refMutex);
+  if(refCount == 0)
     gaX_sample_source_destroy(in_sampleSrc);
 }
 gc_int32 ga_sample_source_ready(ga_SampleSource* in_sampleSrc, gc_int32 in_numSamples)
@@ -581,6 +609,15 @@ gc_int32 ga_handle_tell(ga_Handle* in_handle, gc_int32 in_param)
   }
   return -1;
 }
+gc_int32 ga_handle_ready(ga_Handle* in_handle, gc_int32 in_numSamples)
+{
+  if(in_handle->handleType == GA_HANDLE_TYPE_SAMPLESOURCE)
+  {
+    ga_HandleSampleSource* hs = (ga_HandleSampleSource*)in_handle;
+    return ga_sample_source_ready(hs->sampleSrc, in_numSamples);
+  }
+  return 1;
+}
 void ga_handle_format(ga_Handle* in_handle, ga_Format* out_format)
 {
   switch(in_handle->handleType)
@@ -763,8 +800,6 @@ void gaX_mixer_mix_buffer(ga_Mixer* in_mixer,
       break;
     }
   }
-  printf("sm: %d\n", (gc_int32)srcSamplesRead / srcChannels);
-  printf("dm: %d\n", i / mixerChannels);
 }
 void gaX_mixer_mix_sample_source(ga_Mixer* in_mixer, ga_HandleSampleSource* in_handle, gc_int32 in_numSamples)
 {
@@ -820,8 +855,6 @@ void gaX_mixer_mix_sample_source(ga_Mixer* in_mixer, ga_HandleSampleSource* in_h
 
           dstBuffer = &m->mixBuffer[0];
           dstSamples = in_numSamples;
-          printf("rq: %d\n", requested);
-          printf("ts: %f\n", dstToSrc);
           {
             /* TODO: To optimize, we could refactor the _read() interface to be _mix(), avoiding this malloc/copy */
             gc_int32 bufferSize = requested * srcSampleSize;

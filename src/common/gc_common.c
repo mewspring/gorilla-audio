@@ -129,6 +129,8 @@ gc_int32 gc_buffer_getAvail(gc_CircBuffer* in_buffer, gc_uint32 in_numBytes,
   {
     *out_dataA = &b->data[nextAvail];
     *out_sizeA = in_numBytes;
+    *out_dataB = 0;
+    *out_sizeB = 0;
     return 1;
   }
   else

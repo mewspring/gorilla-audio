@@ -2,6 +2,8 @@
 #define _GORILLA_GAU_H
 
 #include "common/gc_common.h"
+#include "gorilla/ga.h"
+#include "gorilla/ga_stream.h"
 
 #ifdef __cplusplus
 extern "C"
@@ -36,6 +38,7 @@ ga_DataSource* gau_data_source_create_file(const char* in_filename);
 ga_DataSource* gau_data_source_create_file_arc(const char* in_filename, gc_int32 in_offset, gc_int32 in_size);
 ga_SampleSource* gau_sample_source_create_wav(ga_DataSource* in_dataSrc);
 ga_SampleSource* gau_sample_source_create_ogg(ga_DataSource* in_dataSrc);
+ga_SampleSource* gau_sample_source_create_stream(ga_StreamManager* in_mgr, ga_SampleSource* in_sampleSrc, gc_int32 in_bufferSamples);
 
 #ifdef __cplusplus
 }

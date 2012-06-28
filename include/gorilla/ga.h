@@ -58,6 +58,13 @@ gc_result ga_device_queue(ga_Device* in_device,
 gc_result ga_device_close(ga_Device* in_device);
 
 /*
+  Source Flags
+*/
+#define GA_FLAG_SEEKABLE 1
+#define GA_FLAG_THREADSAFE 2
+#define GA_FLAG_LOOPABLE 4
+
+/*
   Data Source Structure
 */
 /*
@@ -83,12 +90,15 @@ typedef struct ga_DataSource {
   tDataSourceFunc_Tell tellFunc; /* OPTIONAL */
   tDataSourceFunc_Close closeFunc; /* OPTIONAL */
   gc_int32 refCount;
+  gc_Mutex* refMutex;
+  gc_int32 flags;
 } ga_DataSource;
 
 void ga_data_source_init(ga_DataSource* in_dataSrc);
 gc_int32 ga_data_source_read(ga_DataSource* in_dataSrc, void* in_dst, gc_int32 in_size, gc_int32 in_count);
 gc_int32 ga_data_source_seek(ga_DataSource* in_dataSrc, gc_int32 in_offset, gc_int32 in_origin);
 gc_int32 ga_data_source_tell(ga_DataSource* in_dataSrc);
+gc_int32 ga_data_source_flags(ga_DataSource* in_dataSrc);
 void ga_data_source_acquire(ga_DataSource* in_dataSrc);
 void ga_data_source_release(ga_DataSource* in_dataSrc);
 
@@ -111,6 +121,8 @@ typedef struct ga_SampleSource {
   tSampleSourceFunc_Close closeFunc; /* OPTIONAL */
   ga_Format format;
   gc_int32 refCount;
+  gc_Mutex* refMutex;
+  gc_int32 flags;
 } ga_SampleSource;
 
 void ga_sample_source_init(ga_SampleSource* in_sampleSrc);
@@ -119,6 +131,7 @@ gc_int32 ga_sample_source_end(ga_SampleSource* in_sampleSrc);
 gc_int32 ga_sample_source_ready(ga_SampleSource* in_sampleSrc, gc_int32 in_numSamples);
 gc_int32 ga_sample_source_seek(ga_SampleSource* in_sampleSrc, gc_int32 in_sampleOffset);
 gc_int32 ga_sample_source_tell(ga_SampleSource* in_sampleSrc, gc_int32* out_totalSamples);
+gc_int32 ga_sample_source_flags(ga_SampleSource* in_sampleSrc);
 void ga_sample_source_format(ga_SampleSource* in_sampleSrc, ga_Format* out_format);
 void ga_sample_source_acquire(ga_SampleSource* in_sampleSrc);
 void ga_sample_source_release(ga_SampleSource* in_sampleSrc);
@@ -259,6 +272,7 @@ gc_result ga_handle_getParami(ga_Handle* in_handle, gc_int32 in_param,
                               gc_int32* out_value);
 gc_result ga_handle_seek(ga_Handle* in_handle, gc_int32 in_sampleOffset);
 gc_int32 ga_handle_tell(ga_Handle* in_handle, gc_int32 in_param);
+gc_int32 ga_handle_ready(ga_Handle* in_handle, gc_int32 in_numSamples);
 void ga_handle_format(ga_Handle* in_handle, ga_Format* out_format);
 
 /*

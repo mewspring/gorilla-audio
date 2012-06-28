@@ -54,8 +54,8 @@ void gc_buffer_consume(gc_CircBuffer* in_buffer, gc_uint32 in_numBytes);
 */
 typedef struct gc_Link gc_Link;
 typedef struct gc_Link {
-  gc_Link* next; /* TODO: Should these be volatile? */
-  gc_Link* prev; /* TODO: Should these be volatile? */
+  gc_Link* next;
+  gc_Link* prev;
   void* data;
 } gc_Link;
 
