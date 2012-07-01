@@ -171,11 +171,12 @@ void ga_sample_source_init(ga_SampleSource* in_sampleSrc)
   in_sampleSrc->flags = 0;
   in_sampleSrc->refMutex = gc_mutex_create();
 }
-gc_int32 ga_sample_source_read(ga_SampleSource* in_sampleSrc, void* in_dst, gc_int32 in_numSamples)
+gc_int32 ga_sample_source_read(ga_SampleSource* in_sampleSrc, void* in_dst, gc_int32 in_numSamples,
+                               tOnSeekFunc in_onSeekFunc, void* in_seekContext)
 {
   tSampleSourceFunc_Read func = in_sampleSrc->readFunc;
   assert(func);
-  return func(in_sampleSrc, in_dst, in_numSamples);
+  return func(in_sampleSrc, in_dst, in_numSamples, in_onSeekFunc, in_seekContext);
 }
 gc_int32 ga_sample_source_end(ga_SampleSource* in_sampleSrc)
 {
@@ -859,7 +860,7 @@ void gaX_mixer_mix_sample_source(ga_Mixer* in_mixer, ga_HandleSampleSource* in_h
             /* TODO: To optimize, we could refactor the _read() interface to be _mix(), avoiding this malloc/copy */
             gc_int32 bufferSize = requested * srcSampleSize;
             void* src = gcX_ops->allocFunc(bufferSize);
-            gc_int32 numRead = ga_sample_source_read(ss, src, requested);
+            gc_int32 numRead = ga_sample_source_read(ss, src, requested, 0, 0);
             gc_int32 dstBytes = dstSamples * dstSampleSize;
             gaX_mixer_mix_buffer(in_mixer,
                                  src, numRead, &handleFormat,

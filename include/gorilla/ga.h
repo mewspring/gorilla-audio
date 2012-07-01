@@ -12,8 +12,8 @@ extern "C"
   API Version
 */
 #define GA_VERSION_MAJOR 0
-#define GA_VERSION_MINOR 0
-#define GA_VERSION_REV 2
+#define GA_VERSION_MINOR 1
+#define GA_VERSION_REV 0
 
 gc_int32 ga_version_check(gc_int32 in_major, gc_int32 in_minor, gc_int32 in_rev);
 
@@ -62,7 +62,6 @@ gc_result ga_device_close(ga_Device* in_device);
 */
 #define GA_FLAG_SEEKABLE 1
 #define GA_FLAG_THREADSAFE 2
-#define GA_FLAG_LOOPABLE 4
 
 /*
   Data Source Structure
@@ -104,8 +103,10 @@ void ga_data_source_release(ga_DataSource* in_dataSrc);
 
 /*
   Sample Source Structure
-*/
-typedef gc_int32 (*tSampleSourceFunc_Read)(void* in_context, void* in_dst, gc_int32 in_numSamples);
+  */
+typedef void (*tOnSeekFunc)(gc_int32 in_sample, gc_int32 in_delta, void* in_seekContext);
+typedef gc_int32 (*tSampleSourceFunc_Read)(void* in_context, void* in_dst, gc_int32 in_numSamples,
+                                           tOnSeekFunc in_onSeekFunc, void* in_seekContext);
 typedef gc_int32 (*tSampleSourceFunc_End)(void* in_context);
 typedef gc_int32 (*tSampleSourceFunc_Ready)(void* in_context, gc_int32 in_numSamples);
 typedef gc_int32 (*tSampleSourceFunc_Seek)(void* in_context, gc_int32 in_sampleOffset);
@@ -126,7 +127,8 @@ typedef struct ga_SampleSource {
 } ga_SampleSource;
 
 void ga_sample_source_init(ga_SampleSource* in_sampleSrc);
-gc_int32 ga_sample_source_read(ga_SampleSource* in_sampleSrc, void* in_dst, gc_int32 in_numSamples);
+gc_int32 ga_sample_source_read(ga_SampleSource* in_sampleSrc, void* in_dst, gc_int32 in_numSamples,
+                               tOnSeekFunc in_onSeekFunc, void* in_seekContext);
 gc_int32 ga_sample_source_end(ga_SampleSource* in_sampleSrc);
 gc_int32 ga_sample_source_ready(ga_SampleSource* in_sampleSrc, gc_int32 in_numSamples);
 gc_int32 ga_sample_source_seek(ga_SampleSource* in_sampleSrc, gc_int32 in_sampleOffset);

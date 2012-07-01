@@ -25,7 +25,7 @@ ga_Sound* gauX_sound_file_from_source(ga_SampleSource* in_sampleSrc)
     char* data;
     dataSize = sampleSize * totalSamples;
     data = gcX_ops->allocFunc(dataSize);
-    ga_sample_source_read(sampleSrc, data, totalSamples);
+    ga_sample_source_read(sampleSrc, data, totalSamples, 0, 0);
     ret = ga_sound_create(data, dataSize, &format, 0);
     if(!ret)
       gcX_ops->freeFunc(data);
@@ -40,7 +40,7 @@ ga_Sound* gauX_sound_file_from_source(ga_SampleSource* in_sampleSrc)
     {
       gc_int32 numSamplesRead;
       data = gcX_ops->reallocFunc(data, (totalSamples + BUFFER_SAMPLES) * sampleSize);
-      numSamplesRead = ga_sample_source_read(sampleSrc, data + (totalSamples * sampleSize), BUFFER_SAMPLES);
+      numSamplesRead = ga_sample_source_read(sampleSrc, data + (totalSamples * sampleSize), BUFFER_SAMPLES, 0, 0);
       if(numSamplesRead < BUFFER_SAMPLES)
       {
         data = gcX_ops->reallocFunc(data, (totalSamples + numSamplesRead) * sampleSize);
@@ -267,9 +267,9 @@ gc_int32 gauX_read_samples_into_buffers(gc_CircBuffer* in_buffer,
   numBuffers = gc_buffer_getFree(b, in_samples * sampleSize, &dataA, &sizeA, &dataB, &sizeB);
   if(numBuffers >= 1)
   {
-    numWritten = ga_sample_source_read(in_sampleSrc, dataA, sizeA / sampleSize);
+    numWritten = ga_sample_source_read(in_sampleSrc, dataA, sizeA / sampleSize, 0, 0);
     if(numBuffers == 2 && numWritten == sizeA)
-      numWritten += ga_sample_source_read(in_sampleSrc, dataB, sizeB / sampleSize);
+      numWritten += ga_sample_source_read(in_sampleSrc, dataB, sizeB / sampleSize, 0, 0);
   }
   gc_buffer_produce(b, numWritten * sampleSize);
   return numWritten;
@@ -610,12 +610,13 @@ gc_result gauX_sample_source_wav_load_header(ga_DataSource* in_dataSrc, ga_WavDa
       }
       else
         gauX_data_source_advance(in_dataSrc, wavData->fmtSize - 16);
-      dataOffset = 16 + wavData->fmtSize;
+      dataOffset = 20 + wavData->fmtSize;
       do
       {
         ga_data_source_read(in_dataSrc, &id[0], sizeof(char), 4); /* 'data' */
         ga_data_source_read(in_dataSrc, &wavData->dataSize, sizeof(gc_int32), 1);
         dataFound = !strcmp(id, "data");
+        dataOffset += 8;
         wavData->dataOffset = dataOffset;
         if(!dataFound)
         {
@@ -629,7 +630,7 @@ gc_result gauX_sample_source_wav_load_header(ga_DataSource* in_dataSrc, ga_WavDa
             /* TODO: Find another way to advance */
             gauX_data_source_advance(in_dataSrc, wavData->dataSize);
           }
-          dataOffset += 8 + wavData->dataSize;
+          dataOffset += wavData->dataSize;
         }
       } while(!dataFound); /* TODO: Need End-Of-Data support in Data Sources */
       if(dataFound)
@@ -652,7 +653,8 @@ typedef struct gau_SampleSourceWav {
   gau_SampleSourceWavContext context;
 } gau_SampleSourceWav;
 
-gc_int32 gauX_sample_source_wav_read(void* in_context, void* in_dst, gc_int32 in_numSamples)
+gc_int32 gauX_sample_source_wav_read(void* in_context, void* in_dst, gc_int32 in_numSamples,
+                                     tOnSeekFunc in_onSeekFunc, void* in_seekContext)
 {
   gau_SampleSourceWavContext* ctx = &((gau_SampleSourceWav*)in_context)->context;
   gc_int32 numRead = 0;
@@ -707,7 +709,7 @@ ga_SampleSource* gau_sample_source_create_wav(ga_DataSource* in_dataSrc)
   ga_sample_source_init(&ret->sampleSrc);
   ret->sampleSrc.flags = GA_FLAG_THREADSAFE;
   if(seekable)
-    ret->sampleSrc.flags |= GA_FLAG_LOOPABLE | GA_FLAG_SEEKABLE;
+    ret->sampleSrc.flags |= GA_FLAG_SEEKABLE;
   ret->sampleSrc.readFunc = &gauX_sample_source_wav_read;
   ret->sampleSrc.endFunc = &gauX_sample_source_wav_end;
   if(seekable)
@@ -791,7 +793,8 @@ typedef struct gau_SampleSourceOgg {
   gau_SampleSourceOggContext context;
 } gau_SampleSourceOgg;
 
-gc_int32 gauX_sample_source_ogg_read(void* in_context, void* in_dst, gc_int32 in_numSamples)
+gc_int32 gauX_sample_source_ogg_read(void* in_context, void* in_dst, gc_int32 in_numSamples,
+                                     tOnSeekFunc in_onSeekFunc, void* in_seekContext)
 {
   gau_SampleSourceOggContext* ctx = &((gau_SampleSourceOgg*)in_context)->context;
   gc_int32 samplesLeft = in_numSamples;
@@ -841,11 +844,11 @@ gc_int32 gauX_sample_source_ogg_seek(void* in_context, gc_int32 in_sampleOffset)
 gc_int32 gauX_sample_source_ogg_tell(void* in_context, gc_int32* out_totalSamples)
 {
   gau_SampleSourceOggContext* ctx = &((gau_SampleSourceOgg*)in_context)->context;
-  /* TODO: Decide whether to support total samples for OGG files */
   gc_int32 ret;
   gc_mutex_lock(ctx->oggMutex);
+  /* TODO: Decide whether to support total samples for OGG files */
   if(out_totalSamples)
-    *out_totalSamples = -1/*ov_pcm_total()*/;
+    *out_totalSamples = ov_pcm_total(&ctx->oggFile, -1); /* Note: This isn't always valid when the stream is poorly-formatted */
   ret = (gc_int32)ov_pcm_tell(&ctx->oggFile);
   gc_mutex_unlock(ctx->oggMutex);
   return ret;
@@ -869,7 +872,7 @@ ga_SampleSource* gau_sample_source_create_ogg(ga_DataSource* in_dataSrc)
   ga_sample_source_init(&ret->sampleSrc);
   ret->sampleSrc.flags = GA_FLAG_THREADSAFE;
   if(seekable)
-    ret->sampleSrc.flags |= GA_FLAG_LOOPABLE | GA_FLAG_SEEKABLE;
+    ret->sampleSrc.flags |= GA_FLAG_SEEKABLE;
   ret->sampleSrc.readFunc = &gauX_sample_source_ogg_read;
   ret->sampleSrc.endFunc = &gauX_sample_source_ogg_end;
   if(seekable)
@@ -932,7 +935,8 @@ typedef struct gau_SampleSourceStream {
   gau_SampleSourceStreamContext context;
 } gau_SampleSourceStream;
 
-gc_int32 gauX_sample_source_stream_read(void* in_context, void* in_dst, gc_int32 in_numSamples)
+gc_int32 gauX_sample_source_stream_read(void* in_context, void* in_dst, gc_int32 in_numSamples,
+                                        tOnSeekFunc in_onSeekFunc, void* in_seekContext)
 {
   gau_SampleSourceStreamContext* ctx = &((gau_SampleSourceStream*)in_context)->context;
   gc_int32 numRead = 0;
@@ -978,6 +982,7 @@ ga_SampleSource* gau_sample_source_create_stream(ga_StreamManager* in_mgr, ga_Sa
   {
     ctx->stream = stream;
     ret->sampleSrc.flags = ga_stream_flags(stream);
+    ret->sampleSrc.flags |= GA_FLAG_THREADSAFE;
     ret->sampleSrc.readFunc = &gauX_sample_source_stream_read;
     ret->sampleSrc.endFunc = &gauX_sample_source_stream_end;
     ret->sampleSrc.readyFunc = &gauX_sample_source_stream_ready;
@@ -994,4 +999,125 @@ ga_SampleSource* gau_sample_source_create_stream(ga_StreamManager* in_mgr, ga_Sa
     ret = 0;
   }
   return (ga_SampleSource*)ret;
+}
+
+/* Loop Sample Source */
+typedef struct gau_SampleSourceLoopContext {
+  ga_SampleSource* innerSrc;
+  gc_int32 triggerSample;
+  gc_int32 targetSample;
+  gc_Mutex* loopMutex;
+  gc_int32 sampleSize;
+} gau_SampleSourceLoopContext;
+
+typedef struct gau_SampleSourceLoop {
+  ga_SampleSource sampleSrc;
+  gau_SampleSourceLoopContext context;
+} gau_SampleSourceLoop;
+
+gc_int32 gauX_sample_source_loop_read(void* in_context, void* in_dst, gc_int32 in_numSamples,
+                                      tOnSeekFunc in_onSeekFunc, void* in_seekContext)
+{
+  gau_SampleSourceLoopContext* ctx = &((gau_SampleSourceLoop*)in_context)->context;
+  gc_int32 numRead = 0;
+  gc_int32 triggerSample, targetSample;
+  gc_int32 pos, total;
+  gc_int32 sampleSize;
+  gc_int32 totalRead = 0;
+  ga_SampleSource* ss = ctx->innerSrc;
+  gc_mutex_lock(ctx->loopMutex);
+  triggerSample = ctx->triggerSample;
+  targetSample = ctx->targetSample;
+  gc_mutex_unlock(ctx->loopMutex);
+  pos = ga_sample_source_tell(ss, &total);
+  if(triggerSample <= 0)
+    triggerSample = total;
+  if((targetSample <= 0 && triggerSample <= 0) || pos > triggerSample)
+    return ga_sample_source_read(ss, in_dst, in_numSamples, 0, 0);
+  sampleSize = ctx->sampleSize;
+  while(in_numSamples)
+  {
+    gc_int32 avail = triggerSample - pos;
+    gc_int32 doSeek = avail < in_numSamples;
+    gc_int32 toRead = doSeek ? avail : in_numSamples;
+    numRead = ga_sample_source_read(ss, in_dst,  toRead, 0, 0);
+    totalRead += numRead;
+    in_numSamples -= numRead;
+    in_dst = (char*)in_dst + numRead * sampleSize;
+    if(doSeek && toRead == numRead)
+    {
+      ga_sample_source_seek(ss, targetSample);
+      if(in_onSeekFunc)
+        in_onSeekFunc(totalRead, targetSample - triggerSample, in_seekContext);
+    }
+    pos = ga_sample_source_tell(ss, &total);
+  }
+  return totalRead;
+}
+gc_int32 gauX_sample_source_loop_end(void* in_context)
+{
+  gau_SampleSourceLoopContext* ctx = &((gau_SampleSourceLoop*)in_context)->context;
+  return ga_sample_source_end(ctx->innerSrc);
+}
+gc_int32 gauX_sample_source_loop_ready(void* in_context, gc_int32 in_numSamples)
+{
+  gau_SampleSourceLoopContext* ctx = &((gau_SampleSourceLoop*)in_context)->context;
+  return ga_sample_source_ready(ctx->innerSrc, in_numSamples);
+}
+gc_int32 gauX_sample_source_loop_seek(void* in_context, gc_int32 in_sampleOffset)
+{
+  gau_SampleSourceLoopContext* ctx = &((gau_SampleSourceLoop*)in_context)->context;
+  return ga_sample_source_seek(ctx->innerSrc, in_sampleOffset);
+}
+gc_int32 gauX_sample_source_loop_tell(void* in_context, gc_int32* out_totalSamples)
+{
+  gau_SampleSourceLoopContext* ctx = &((gau_SampleSourceLoop*)in_context)->context;
+  return ga_sample_source_tell(ctx->innerSrc, out_totalSamples);
+}
+void gauX_sample_source_loop_close(void* in_context)
+{
+  gau_SampleSourceLoopContext* ctx = &((gau_SampleSourceLoop*)in_context)->context;
+  gc_mutex_destroy(ctx->loopMutex);
+  ga_sample_source_release(ctx->innerSrc);
+}
+void gau_sample_source_loop_set(gau_SampleSourceLoop* in_sampleSrc, gc_int32 in_triggerSample, gc_int32 in_targetSample)
+{
+  gau_SampleSourceLoopContext* ctx = &in_sampleSrc->context;
+  gc_mutex_lock(ctx->loopMutex);
+  ctx->targetSample = in_targetSample;
+  ctx->triggerSample = in_triggerSample;
+  gc_mutex_unlock(ctx->loopMutex);
+}
+void gau_sample_source_loop_clear(gau_SampleSourceLoop* in_sampleSrc)
+{
+  gau_SampleSourceLoopContext* ctx = &in_sampleSrc->context;
+  gc_mutex_lock(ctx->loopMutex);
+  ctx->targetSample = -1;
+  ctx->triggerSample = -1;
+  gc_mutex_unlock(ctx->loopMutex);
+}
+gau_SampleSourceLoop* gau_sample_source_create_loop(ga_SampleSource* in_sampleSrc)
+{
+  gau_SampleSourceLoop* ret = gcX_ops->allocFunc(sizeof(gau_SampleSourceLoop));
+  gau_SampleSourceLoopContext* ctx = &ret->context;
+  gc_int32 sampleSize;
+  ga_sample_source_init(&ret->sampleSrc);
+  ga_sample_source_acquire(in_sampleSrc);
+  ga_sample_source_format(in_sampleSrc, &ret->sampleSrc.format);
+  sampleSize = ga_format_sampleSize(&ret->sampleSrc.format);
+  ctx->triggerSample = -1;
+  ctx->targetSample = -1;
+  ctx->loopMutex = gc_mutex_create();
+  ctx->innerSrc = in_sampleSrc;
+  ctx->sampleSize = sampleSize;
+  ret->sampleSrc.flags = ga_sample_source_flags(in_sampleSrc);
+  ret->sampleSrc.flags |= GA_FLAG_THREADSAFE;
+  assert(ret->sampleSrc.flags & GA_FLAG_SEEKABLE);
+  ret->sampleSrc.readFunc = &gauX_sample_source_loop_read;
+  ret->sampleSrc.endFunc = &gauX_sample_source_loop_end;
+  ret->sampleSrc.readyFunc = &gauX_sample_source_loop_ready;
+  ret->sampleSrc.seekFunc = &gauX_sample_source_loop_seek;
+  ret->sampleSrc.tellFunc = &gauX_sample_source_loop_tell;
+  ret->sampleSrc.closeFunc = &gauX_sample_source_loop_close;
+  return ret;
 }

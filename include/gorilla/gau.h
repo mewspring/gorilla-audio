@@ -40,6 +40,12 @@ ga_SampleSource* gau_sample_source_create_wav(ga_DataSource* in_dataSrc);
 ga_SampleSource* gau_sample_source_create_ogg(ga_DataSource* in_dataSrc);
 ga_SampleSource* gau_sample_source_create_stream(ga_StreamManager* in_mgr, ga_SampleSource* in_sampleSrc, gc_int32 in_bufferSamples);
 
+/* Loop Sample Source */
+typedef struct gau_SampleSourceLoop gau_SampleSourceLoop;
+gau_SampleSourceLoop* gau_sample_source_create_loop(ga_SampleSource* in_sampleSrc);
+void gau_sample_source_loop_set(gau_SampleSourceLoop* in_sampleSrc, gc_int32 in_triggerSample, gc_int32 in_targetSample);
+void gau_sample_source_loop_clear(gau_SampleSourceLoop* in_sampleSrc);
+
 #ifdef __cplusplus
 }
 #endif /* __cplusplus */

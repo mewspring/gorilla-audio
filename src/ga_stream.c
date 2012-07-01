@@ -209,9 +209,24 @@ ga_Stream* ga_stream_create(ga_StreamManager* in_mgr, ga_SampleSource* in_sample
   ret->streamLink = (gc_Link*)gaX_stream_manager_add(in_mgr, ret);
   return ret;
 }
-gc_int32 gaX_read_samples_into_stream(gc_CircBuffer* in_buffer,
-                                       gc_int32 in_samples,
-                                       ga_SampleSource* in_sampleSrc)
+void gaX_stream_onSeek(gc_int32 in_sample, gc_int32 in_delta, void* in_seekContext)
+{
+  ga_Stream* s = (ga_Stream*)in_seekContext;
+  gc_int32 samplesAvail, sampleSize;
+  ga_Format fmt;
+  ga_sample_source_format(s->innerSrc, &fmt);
+  sampleSize = ga_format_sampleSize(&fmt);
+  gc_mutex_lock(s->readMutex);
+  gc_mutex_lock(s->seekMutex);
+  samplesAvail = gc_buffer_bytesAvail(s->buffer) / sampleSize;
+  gauX_tell_jump_push(&s->tellJumps, samplesAvail + in_sample, in_delta);
+  gc_mutex_unlock(s->seekMutex);
+  gc_mutex_unlock(s->readMutex);
+}
+gc_int32 gaX_read_samples_into_stream(ga_Stream* in_stream,
+                                      gc_CircBuffer* in_buffer,
+                                      gc_int32 in_samples,
+                                      ga_SampleSource* in_sampleSrc)
 {
   void* dataA;
   void* dataB;
@@ -227,9 +242,9 @@ gc_int32 gaX_read_samples_into_stream(gc_CircBuffer* in_buffer,
   numBuffers = gc_buffer_getFree(b, in_samples * sampleSize, &dataA, &sizeA, &dataB, &sizeB);
   if(numBuffers >= 1)
   {
-    numWritten = ga_sample_source_read(in_sampleSrc, dataA, sizeA / sampleSize);
+    numWritten = ga_sample_source_read(in_sampleSrc, dataA, sizeA / sampleSize, &gaX_stream_onSeek, in_stream);
     if(numBuffers == 2 && numWritten == sizeA)
-      numWritten += ga_sample_source_read(in_sampleSrc, dataB, sizeB / sampleSize);
+      numWritten += ga_sample_source_read(in_sampleSrc, dataB, sizeB / sampleSize, &gaX_stream_onSeek, in_stream);
   }
   gc_buffer_produce(b, numWritten * sampleSize);
   return numWritten;
@@ -240,17 +255,6 @@ void ga_stream_produce(ga_Stream* in_stream)
   gc_CircBuffer* b = s->buffer;
   gc_int32 sampleSize = ga_format_sampleSize(&s->format);
   gc_int32 bytesFree = gc_buffer_bytesFree(b);
-  gc_int32 loop = 0;
-  gc_int32 loopStart = 0;
-  gc_int32 loopEnd = -1;
-
-  /* TODO: Figure out how to correctly implement looping */
-  /*
-  loop = s->loop;
-  loopStart = s->loopStart;
-  loopEnd = s->loopEnd;
-  */
-
   if(s->seek >= 0)
   {
     gc_int32 samplePos;
@@ -274,33 +278,15 @@ void ga_stream_produce(ga_Stream* in_stream)
   {
     gc_int32 samplesWritten = 0;
     gc_int32 bytesWritten = 0;
-    gc_int32 bytesToWrite =
-      (loop && loopEnd > s->nextSample) ?
-      (loopEnd - s->nextSample) * sampleSize:
-    bytesFree;
-    bytesToWrite = bytesToWrite > bytesFree ? bytesFree : bytesToWrite;
-    samplesWritten = gaX_read_samples_into_stream(b, bytesToWrite / sampleSize, s->innerSrc);
+    gc_int32 bytesToWrite = bytesFree;
+    samplesWritten = gaX_read_samples_into_stream(s, b, bytesToWrite / sampleSize, s->innerSrc);
     bytesWritten = samplesWritten * sampleSize;
     bytesFree -= bytesWritten;
     s->nextSample += samplesWritten;
-    if((bytesWritten < bytesToWrite && ga_sample_source_end(s->innerSrc)) || (loop && s->nextSample == loopEnd))
+    if(bytesWritten < bytesToWrite && ga_sample_source_end(s->innerSrc))
     {
-      if(loop)
-      {
-        ga_sample_source_seek(s->innerSrc, loopStart);
-        gc_mutex_unlock(s->readMutex);
-        gc_mutex_lock(s->seekMutex);
-        /* Add tell jump */
-        gauX_tell_jump_push(&s->tellJumps, gc_buffer_bytesAvail(s->buffer) / sampleSize, loopStart - s->nextSample);
-        gc_mutex_unlock(s->seekMutex);
-        gc_mutex_unlock(s->readMutex);
-        s->nextSample = loopStart;
-      }
-      else
-      {
-        s->end = 1;
-        break;
-      }
+      s->end = 1;
+      break;
     }
   }
 }
