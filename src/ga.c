@@ -259,6 +259,8 @@ ga_Sound* ga_sound_create(void* in_data, gc_int32 in_size,
   else
     ret->data = in_data;
   memcpy(&ret->format, in_format, sizeof(ga_Format));
+  ret->refMutex = gc_mutex_create();
+  ret->refCount = 1;
   return (ga_Sound*)ret;
 }
 gc_result ga_sound_setLoops(ga_Sound* in_sound,
@@ -272,12 +274,32 @@ gc_int32 ga_sound_numSamples(ga_Sound* in_sound)
 {
   return in_sound->size / ga_format_sampleSize(&in_sound->format);
 }
-gc_result ga_sound_destroy(ga_Sound* in_sound)
+void ga_sound_format(ga_Sound* in_sound, ga_Format* out_format)
+{
+  memcpy(out_format, &in_sound->format, sizeof(ga_Format));
+}
+static void gaX_sound_destroy(ga_Sound* in_sound)
 {
   if(in_sound->isCopy)
     gcX_ops->freeFunc(in_sound->data);
   gcX_ops->freeFunc(in_sound);
-  return GC_SUCCESS;
+}
+void ga_sound_acquire(ga_Sound* in_sound)
+{
+  gc_mutex_lock(in_sound->refMutex);
+  ++in_sound->refCount;
+  gc_mutex_unlock(in_sound->refMutex);
+}
+void ga_sound_release(ga_Sound* in_sound)
+{
+  gc_int32 refCount;
+  assert(in_sound->refCount > 0);
+  gc_mutex_lock(in_sound->refMutex);
+  --in_sound->refCount;
+  refCount = in_sound->refCount;
+  gc_mutex_unlock(in_sound->refMutex);
+  if(refCount == 0)
+    gaX_sound_destroy(in_sound);
 }
 
 /* Handle Functions */
@@ -857,15 +879,17 @@ void gaX_mixer_mix_sample_source(ga_Mixer* in_mixer, ga_HandleSampleSource* in_h
           dstBuffer = &m->mixBuffer[0];
           dstSamples = in_numSamples;
           {
-            /* TODO: To optimize, we could refactor the _read() interface to be _mix(), avoiding this malloc/copy */
+            /* TODO: To optimize, we can refactor the _read() interface to be _mix(), avoiding this malloc/copy */
             gc_int32 bufferSize = requested * srcSampleSize;
             void* src = gcX_ops->allocFunc(bufferSize);
-            gc_int32 numRead = ga_sample_source_read(ss, src, requested, 0, 0);
             gc_int32 dstBytes = dstSamples * dstSampleSize;
+            gc_int32 numRead = 0;
+            numRead = ga_sample_source_read(ss, src, requested, 0, 0);
             gaX_mixer_mix_buffer(in_mixer,
                                  src, numRead, &handleFormat,
                                  dstBuffer, dstSamples, &m->format,
                                  gain, pan, pitch);
+            gcX_ops->freeFunc(src);
           }
         }
       }

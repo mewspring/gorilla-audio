@@ -39,6 +39,7 @@ ga_DataSource* gau_data_source_create_file_arc(const char* in_filename, gc_int32
 ga_SampleSource* gau_sample_source_create_wav(ga_DataSource* in_dataSrc);
 ga_SampleSource* gau_sample_source_create_ogg(ga_DataSource* in_dataSrc);
 ga_SampleSource* gau_sample_source_create_stream(ga_StreamManager* in_mgr, ga_SampleSource* in_sampleSrc, gc_int32 in_bufferSamples);
+ga_SampleSource* gau_sample_source_create_sound(ga_Sound* in_sound);
 
 /* Loop Sample Source */
 typedef struct gau_SampleSourceLoop gau_SampleSourceLoop;

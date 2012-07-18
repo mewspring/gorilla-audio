@@ -149,6 +149,8 @@ typedef struct ga_Sound {
   ga_Format format;
   gc_int32 isCopy;
   gc_int32 numSamples;
+  gc_int32 refCount;
+  gc_Mutex* refMutex;
 } ga_Sound;
 
 ga_Sound* ga_sound_create(void* in_data, gc_int32 in_size,
@@ -156,7 +158,9 @@ ga_Sound* ga_sound_create(void* in_data, gc_int32 in_size,
 gc_result ga_sound_setLoops(ga_Sound* in_sound,
                             gc_int32 in_loopStart, gc_int32 in_loopEnd);
 gc_int32 ga_sound_numSamples(ga_Sound* in_sound);
-gc_result ga_sound_destroy(ga_Sound* in_sound);
+void ga_sound_format(ga_Sound* in_sound, ga_Format* out_format);
+void ga_sound_acquire(ga_Sound* in_sound);
+void ga_sound_release(ga_Sound* in_sound);
 
 /*
   Gorilla Handle

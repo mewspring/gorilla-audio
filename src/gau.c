@@ -1121,3 +1121,92 @@ gau_SampleSourceLoop* gau_sample_source_create_loop(ga_SampleSource* in_sampleSr
   ret->sampleSrc.closeFunc = &gauX_sample_source_loop_close;
   return ret;
 }
+
+/* Sound Sample Source */
+typedef struct gau_SampleSourceSoundContext {
+  ga_Sound* sound;
+  gc_int32 sampleSize;
+  gc_int32 numSamples;
+  gc_Mutex* posMutex;
+  volatile gc_int32 pos; /* Volatile, but shouldn't need a mutex around use */
+} gau_SampleSourceSoundContext;
+
+typedef struct gau_SampleSourceSound {
+  ga_SampleSource sampleSrc;
+  gau_SampleSourceSoundContext context;
+} gau_SampleSourceSound;
+
+gc_int32 gauX_sample_source_sound_read(void* in_context, void* in_dst, gc_int32 in_numSamples,
+                                       tOnSeekFunc in_onSeekFunc, void* in_seekContext)
+{
+  gau_SampleSourceSoundContext* ctx = &((gau_SampleSourceSound*)in_context)->context;
+  ga_Sound* snd = ctx->sound;
+  char* src;
+  gc_int32 pos;
+  gc_int32 avail;
+  gc_int32 numRead;
+  gc_mutex_lock(ctx->posMutex);
+  pos = ctx->pos;
+  avail = ctx->numSamples - pos;
+  numRead = in_numSamples > avail ? avail : in_numSamples;
+  ctx->pos += numRead;
+  gc_mutex_unlock(ctx->posMutex);
+  src = (char*)snd->data + pos * ctx->sampleSize;
+  memcpy(in_dst, src, numRead * ctx->sampleSize);
+  return numRead;
+}
+gc_int32 gauX_sample_source_sound_end(void* in_context)
+{
+  gau_SampleSourceSoundContext* ctx = &((gau_SampleSourceSound*)in_context)->context;
+  return ctx->pos >= ctx->numSamples;
+}
+gc_int32 gauX_sample_source_sound_ready(void* in_context, gc_int32 in_numSamples)
+{
+  gau_SampleSourceSoundContext* ctx = &((gau_SampleSourceSound*)in_context)->context;
+  return in_numSamples - ctx->pos;
+}
+gc_int32 gauX_sample_source_sound_seek(void* in_context, gc_int32 in_sampleOffset)
+{
+  gau_SampleSourceSoundContext* ctx = &((gau_SampleSourceSound*)in_context)->context;
+  if(in_sampleOffset > ctx->numSamples)
+    return -1;
+  gc_mutex_lock(ctx->posMutex);
+  ctx->pos = in_sampleOffset;
+  gc_mutex_unlock(ctx->posMutex);
+  return 0;
+}
+gc_int32 gauX_sample_source_sound_tell(void* in_context, gc_int32* out_totalSamples)
+{
+  gau_SampleSourceSoundContext* ctx = &((gau_SampleSourceSound*)in_context)->context;
+  *out_totalSamples = ctx->numSamples;
+  return ctx->pos;
+}
+void gauX_sample_source_sound_close(void* in_context)
+{
+  gau_SampleSourceSoundContext* ctx = &((gau_SampleSourceSound*)in_context)->context;
+  gc_mutex_destroy(ctx->posMutex);
+  ga_sound_release(ctx->sound);
+}
+ga_SampleSource* gau_sample_source_create_sound(ga_Sound* in_sound)
+{
+  gau_SampleSourceSound* ret = gcX_ops->allocFunc(sizeof(gau_SampleSourceSound));
+  gau_SampleSourceSoundContext* ctx = &ret->context;
+  gc_int32 sampleSize;
+  ga_sample_source_init(&ret->sampleSrc);
+  ga_sound_acquire(in_sound);
+  ga_sound_format(in_sound, &ret->sampleSrc.format);
+  sampleSize = ga_format_sampleSize(&ret->sampleSrc.format);
+  ctx->posMutex = gc_mutex_create();
+  ctx->sound = in_sound;
+  ctx->sampleSize = sampleSize;
+  ctx->numSamples = ga_sound_numSamples(in_sound);
+  ctx->pos = 0;
+  ret->sampleSrc.flags = GA_FLAG_THREADSAFE | GA_FLAG_SEEKABLE;
+  ret->sampleSrc.readFunc = &gauX_sample_source_sound_read;
+  ret->sampleSrc.endFunc = &gauX_sample_source_sound_end;
+  ret->sampleSrc.readyFunc = &gauX_sample_source_sound_ready;
+  ret->sampleSrc.seekFunc = &gauX_sample_source_sound_seek;
+  ret->sampleSrc.tellFunc = &gauX_sample_source_sound_tell;
+  ret->sampleSrc.closeFunc = &gauX_sample_source_sound_close;
+  return (ga_SampleSource*)ret;
+}
