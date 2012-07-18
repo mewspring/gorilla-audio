@@ -777,7 +777,7 @@ gc_int32 gauX_sample_source_sound_end(void* in_context)
 gc_int32 gauX_sample_source_sound_ready(void* in_context, gc_int32 in_numSamples)
 {
   gau_SampleSourceSoundContext* ctx = &((gau_SampleSourceSound*)in_context)->context;
-  return in_numSamples - ctx->pos;
+  return in_numSamples <= (ctx->numSamples - ctx->pos);
 }
 gc_int32 gauX_sample_source_sound_seek(void* in_context, gc_int32 in_sampleOffset)
 {

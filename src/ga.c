@@ -353,7 +353,7 @@ void gaX_handle_init(ga_Handle* in_handle, ga_Mixer* in_mixer)
 }
 
 ga_Handle* ga_handle_create(ga_Mixer* in_mixer,
-                                        ga_SampleSource* in_sampleSrc)
+                            ga_SampleSource* in_sampleSrc)
 {
   ga_Handle* h = (ga_Handle*)gcX_ops->allocFunc(sizeof(ga_Handle));
   h->streamLink.next = 0;
