@@ -12,7 +12,7 @@ extern "C"
   API Version
 */
 #define GA_VERSION_MAJOR 0
-#define GA_VERSION_MINOR 1
+#define GA_VERSION_MINOR 2
 #define GA_VERSION_REV 0
 
 gc_int32 ga_version_check(gc_int32 in_major, gc_int32 in_minor, gc_int32 in_rev);
@@ -142,8 +142,6 @@ void ga_sample_source_release(ga_SampleSource* in_sampleSrc);
   Gorilla Sound
 */
 typedef struct ga_Sound {
-  gc_int32 loopStart;
-  gc_int32 loopEnd;
   void* data;
   gc_uint32 size;
   ga_Format format;
@@ -153,10 +151,9 @@ typedef struct ga_Sound {
   gc_Mutex* refMutex;
 } ga_Sound;
 
-ga_Sound* ga_sound_create(void* in_data, gc_int32 in_size,
-                          ga_Format* in_format, gc_int32 in_copy);
-gc_result ga_sound_setLoops(ga_Sound* in_sound,
-                            gc_int32 in_loopStart, gc_int32 in_loopEnd);
+ga_Sound* ga_sound_create(ga_SampleSource* in_sampleSrc);
+ga_Sound* ga_sound_createRaw(void* in_data, gc_int32 in_size,
+                             ga_Format* in_format, gc_int32 in_copy);
 gc_int32 ga_sound_numSamples(ga_Sound* in_sound);
 void ga_sound_format(ga_Sound* in_sound, ga_Format* out_format);
 void ga_sound_acquire(ga_Sound* in_sound);
@@ -180,82 +177,26 @@ void ga_sound_release(ga_Sound* in_sound);
 
 typedef void (*ga_FinishCallback)(ga_Handle*, void*);
 
-#define GA_HANDLE_HEADER \
-  gc_int32 handleType; \
-  ga_Mixer* mixer; \
-  ga_FinishCallback callback; \
-  void* context; \
-  gc_int32 state; \
-  gc_float32 gain; \
-  gc_float32 pitch; \
-  gc_float32 pan; \
-  gc_int32 loop; \
-  gc_int32 loopStart; \
-  gc_int32 loopEnd; \
-  gc_Link dispatchLink; \
-  gc_Link mixLink; \
-  gc_Link streamLink; \
-  gc_Mutex* handleMutex;
-
 typedef struct ga_Handle {
-  GA_HANDLE_HEADER
+  ga_Mixer* mixer;
+  ga_FinishCallback callback;
+  void* context;
+  gc_int32 state;
+  gc_float32 gain;
+  gc_float32 pitch;
+  gc_float32 pan;
+  gc_Link dispatchLink;
+  gc_Link mixLink;
+  gc_Link streamLink;
+  gc_Mutex* handleMutex;
+  ga_SampleSource* sampleSrc;
+  volatile gc_int32 finished;
 } ga_Handle;
-
-typedef struct ga_HandleStream ga_HandleStream;
 
 #define GA_TELL_PARAM_CURRENT 0
 #define GA_TELL_PARAM_TOTAL 1
 
-typedef void (*ga_StreamProduceFunc)(ga_HandleStream* in_handle);
-typedef void (*ga_StreamConsumeFunc)(ga_HandleStream* in_handle, gc_int32 in_samplesConsumed);
-typedef void (*ga_StreamSeekFunc)(ga_HandleStream* in_handle, gc_int32 in_sampleOffset);
-typedef gc_int32 (*ga_StreamTellFunc)(ga_HandleStream* in_handle, gc_int32 in_param);
-typedef void (*ga_StreamDestroyFunc)(ga_HandleStream* in_handle);
-
-#define GA_HANDLE_TYPE_UNKNOWN 0
-#define GA_HANDLE_TYPE_STATIC 1
-#define GA_HANDLE_TYPE_STREAM 2
-#define GA_HANDLE_TYPE_SAMPLESOURCE 3
-
-typedef struct ga_HandleStatic {
-  GA_HANDLE_HEADER
-  ga_Sound* sound;
-  volatile gc_int32 nextSample;
-} ga_HandleStatic;
-
-typedef struct ga_HandleStream {
-  GA_HANDLE_HEADER
-  volatile ga_StreamProduceFunc produceFunc;
-  ga_StreamConsumeFunc consumeFunc;
-  ga_StreamSeekFunc seekFunc;
-  ga_StreamTellFunc tellFunc;
-  ga_StreamDestroyFunc destroyFunc;
-  void* streamContext;
-  gc_int32 group;
-  gc_CircBuffer* buffer;
-  ga_Format format;
-  gc_Mutex* consumeMutex;
-} ga_HandleStream;
-
-typedef struct ga_HandleSampleSource {
-  GA_HANDLE_HEADER
-  ga_SampleSource* sampleSrc;
-  volatile gc_int32 finished;
-} ga_HandleSampleSource;
-
-ga_Handle* ga_handle_create(ga_Mixer* in_mixer, ga_Sound* in_sound);
-ga_Handle* ga_handle_createSampleSource(ga_Mixer* in_mixer,
-                                        ga_SampleSource* in_sampleSrc);
-ga_Handle* ga_handle_createStream(ga_Mixer* in_mixer,
-                                  gc_int32 in_group,
-                                  gc_int32 in_bufferSize,
-                                  ga_Format* in_format,
-                                  ga_StreamProduceFunc in_produceFunc,
-                                  ga_StreamConsumeFunc in_consumeFunc,
-                                  ga_StreamSeekFunc in_seekFunc,
-                                  ga_StreamTellFunc in_tellFunc,
-                                  ga_StreamDestroyFunc in_destroyFunc,
-                                  void* in_context);
+ga_Handle* ga_handle_create(ga_Mixer* in_mixer, ga_SampleSource* in_sampleSrc);
 gc_result ga_handle_destroy(ga_Handle* in_handle);
 gc_result ga_handle_play(ga_Handle* in_handle);
 gc_result ga_handle_stop(ga_Handle* in_handle);
@@ -266,8 +207,6 @@ gc_int32 ga_handle_destroyed(ga_Handle* in_handle);
 gc_result ga_handle_setCallback(ga_Handle* in_handle,
                                 ga_FinishCallback in_callback,
                                 void* in_context);
-gc_result ga_handle_setLoops(ga_Handle* in_handle,
-                             gc_int32 in_loopStart, gc_int32 in_loopEnd);
 gc_result ga_handle_setParamf(ga_Handle* in_handle, gc_int32 in_param,
                               gc_float32 in_value);
 gc_result ga_handle_getParamf(ga_Handle* in_handle, gc_int32 in_param,
@@ -293,14 +232,11 @@ typedef struct ga_Mixer {
   gc_Mutex* dispatchMutex;
   gc_Link mixList;
   gc_Mutex* mixMutex;
-  gc_Link streamList;
-  gc_Mutex* streamMutex;
 } ga_Mixer;
 
 ga_Mixer* ga_mixer_create(ga_Format* in_format, gc_int32 in_numSamples);
 ga_Format* ga_mixer_format(ga_Mixer* in_mixer);
 gc_int32 ga_mixer_numSamples(ga_Mixer* in_mixer);
-gc_result ga_mixer_stream(ga_Mixer* in_mixer);
 gc_result ga_mixer_mix(ga_Mixer* in_mixer, void* out_buffer);
 gc_result ga_mixer_dispatch(ga_Mixer* in_mixer);
 gc_result ga_mixer_destroy(ga_Mixer* in_mixer);
