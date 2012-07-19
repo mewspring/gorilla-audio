@@ -176,7 +176,7 @@ void ga_sound_release(ga_Sound* in_sound);
 
 typedef void (*ga_FinishCallback)(ga_Handle*, void*);
 
-typedef struct ga_Handle {
+struct ga_Handle {
   ga_Mixer* mixer;
   ga_FinishCallback callback;
   void* context;
@@ -190,7 +190,7 @@ typedef struct ga_Handle {
   gc_Mutex* handleMutex;
   ga_SampleSource* sampleSrc;
   volatile gc_int32 finished;
-} ga_Handle;
+};
 
 #define GA_TELL_PARAM_CURRENT 0
 #define GA_TELL_PARAM_TOTAL 1
@@ -222,7 +222,7 @@ void ga_handle_format(ga_Handle* in_handle, ga_Format* out_format);
 /*
   Gorilla Mixer
 */
-typedef struct ga_Mixer {
+struct ga_Mixer {
   ga_Format format;
   ga_Format mixFormat;
   gc_int32 numSamples;
@@ -231,7 +231,7 @@ typedef struct ga_Mixer {
   gc_Mutex* dispatchMutex;
   gc_Link mixList;
   gc_Mutex* mixMutex;
-} ga_Mixer;
+};
 
 ga_Mixer* ga_mixer_create(ga_Format* in_format, gc_int32 in_numSamples);
 ga_Format* ga_mixer_format(ga_Mixer* in_mixer);

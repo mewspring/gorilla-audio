@@ -52,10 +52,9 @@ void gc_buffer_consume(gc_CircBuffer* in_buffer, gc_uint32 in_numBytes);
 /*
   Linked List
 */
-typedef struct gc_Link gc_Link;
 typedef struct gc_Link {
-  gc_Link* next;
-  gc_Link* prev;
+  struct gc_Link* next;
+  struct gc_Link* prev;
   void* data;
 } gc_Link;
 

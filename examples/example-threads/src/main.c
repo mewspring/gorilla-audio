@@ -23,7 +23,7 @@ int main(int argc, char** argv)
   gau_SampleSourceLoop* loopSrc;
 #endif /* LOOP */
   gc_int32 quit = 0;
-
+  
   /* Initialize library */
   gc_initialize(0);
 

@@ -2,7 +2,7 @@ ROAD MAP
 ---
 
 TODO:
-- Port to Linux and Mac (using OpenAL)
+- Port to Linux (using OpenAL)
 - Multi-stream-synchronization
 - Handle-locking for atomic groups of control commands
 - Improve error reporting and handling

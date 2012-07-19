@@ -738,10 +738,10 @@ typedef struct gau_SampleSourceLoopContext {
   gc_int32 sampleSize;
 } gau_SampleSourceLoopContext;
 
-typedef struct gau_SampleSourceLoop {
+struct gau_SampleSourceLoop {
   ga_SampleSource sampleSrc;
   gau_SampleSourceLoopContext context;
-} gau_SampleSourceLoop;
+};
 
 gc_int32 gauX_sample_source_loop_read(void* in_context, void* in_dst, gc_int32 in_numSamples,
                                       tOnSeekFunc in_onSeekFunc, void* in_seekContext)
@@ -940,6 +940,11 @@ ga_SampleSource* gau_sample_source_create_sound(ga_Sound* in_sound)
 }
 
 /* Helper functions */
+#ifdef __APPLE__
+#define stricmp strcasecmp
+#elif defined(_WIN32)
+#define stricmp _stricmp
+#endif /* __APPLE__ */
 ga_Sound* gau_helper_sound_file(const char* in_filename, const char* in_format)
 {
   ga_Sound* ret = 0;

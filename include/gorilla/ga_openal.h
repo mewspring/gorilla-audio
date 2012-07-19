@@ -8,14 +8,11 @@ extern "C"
 {
 #endif /* __cplusplus */
 
-typedef struct ALCdevice_struct ALCdevice;
-typedef struct ALCcontext_struct ALCcontext;
-
 typedef struct ga_DeviceImpl_OpenAl
 {
   GA_DEVICE_HEADER
-  ALCdevice* dev;
-  ALCcontext* context;
+  struct ALCdevice_struct* dev;
+  struct ALCcontext_struct* context;
   gc_uint32* hwBuffers;
   gc_uint32 hwSource;
   gc_uint32 nextBuffer;

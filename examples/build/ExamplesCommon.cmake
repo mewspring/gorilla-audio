@@ -12,11 +12,18 @@ if(LINUX)
   SET(PLATFORM_NAME "linux")
 endif()
 
+if(NOT CMAKE_BUILD_TYPE)
+  message(STATUS "No build type selected (defaulting to Release)")
+  set(CMAKE_BUILD_TYPE "Release")
+endif()
+
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY_DEBUG ${PROJECT_SOURCE_DIR}/../bin)
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY_RELEASE ${PROJECT_SOURCE_DIR}/../bin)
 
 if(APPLE)
   add_definitions(-mmacosx-version-min=10.5)
+  add_definitions(-arch i386 -arch x86_64)
+  set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -arch i386 -arch x86_64")
   set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -mmacosx-version-min=10.5")
   set(CMAKE_SHARED_LIBRARY_C_FLAGS "${CMAKE_SHARED_LIBRARY_C_FLAGS} -mmacosx-version-min=10.5")
   set(CMAKE_SHARED_LIBRARY_CXX_FLAGS "${CMAKE_SHARED_LIBRARY_CXX_FLAGS} -mmacosx-version-min=10.5")
