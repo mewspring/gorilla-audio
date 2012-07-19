@@ -13,7 +13,7 @@ extern "C"
 */
 #define GA_VERSION_MAJOR 0
 #define GA_VERSION_MINOR 2
-#define GA_VERSION_REV 0
+#define GA_VERSION_REV 1
 
 gc_int32 ga_version_check(gc_int32 in_major, gc_int32 in_minor, gc_int32 in_rev);
 
@@ -103,7 +103,7 @@ void ga_data_source_release(ga_DataSource* in_dataSrc);
 
 /*
   Sample Source Structure
-  */
+*/
 typedef void (*tOnSeekFunc)(gc_int32 in_sample, gc_int32 in_delta, void* in_seekContext);
 typedef gc_int32 (*tSampleSourceFunc_Read)(void* in_context, void* in_dst, gc_int32 in_numSamples,
                                            tOnSeekFunc in_onSeekFunc, void* in_seekContext);
@@ -166,7 +166,6 @@ void ga_sound_release(ga_Sound* in_sound);
 #define GA_HANDLE_PARAM_PAN 1
 #define GA_HANDLE_PARAM_PITCH 2
 #define GA_HANDLE_PARAM_GAIN 3
-#define GA_HANDLE_PARAM_LOOP 4
 
 #define GA_HANDLE_STATE_UNKNOWN 0
 #define GA_HANDLE_STATE_INITIAL 1

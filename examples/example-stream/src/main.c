@@ -6,58 +6,63 @@
 #include <stdio.h>
 #include <math.h>
 
+/*#define LOOP*/
+
+static void destroyOnFinish(ga_Handle* in_handle, void* in_context)
+{
+  ga_handle_destroy(in_handle);
+}
 int main(int argc, char** argv)
 {
-  ga_Format fmt;
   ga_Device* dev;
-  gc_int16* buf;
-  gc_int32 numSamples;
-  gc_int32 sampleSize;
-  gc_int32 numToQueue;
+  gau_Manager* mgr;
   ga_Mixer* mixer;
-  ga_Handle* handle;
+  ga_StreamManager* streamMgr;
+  ga_Handle* stream;
+#ifdef LOOP
+  gau_SampleSourceLoop* loopSrc;
+#endif /* LOOP */
+  gc_int32 quit = 0;
 
   /* Initialize library */
   gc_initialize(0);
 
   /* Initialize device */
-  dev = ga_device_open(GA_DEVICE_TYPE_OPENAL, 2);
+  dev = ga_device_open(GA_DEVICE_TYPE_OPENAL, 4);
   if(!dev)
     return 1;
 
-  /* Initialize mixer */
-  memset(&fmt, 0, sizeof(ga_Format));
-  fmt.bitsPerSample = 16;
-  fmt.numChannels = 2;
-  fmt.sampleRate = 44100;
-  numSamples = 2048;
-  sampleSize = ga_format_sampleSize(&fmt);
-  buf = (gc_int16*)malloc(numSamples * sampleSize);
-  mixer = ga_mixer_create(&fmt, numSamples);
+  /* Initialize manager */
+  mgr = gau_manager_create(dev, GAU_THREAD_POLICY_SINGLE, 512);
+  mixer = gau_manager_mixer(mgr);
+  streamMgr = gau_manager_streamManager(mgr);
 
-  /* Create and play streaming sound */
-  handle = gau_stream_file(mixer, 0, 131072, "test.wav", GA_FILE_FORMAT_WAV, 0);
-  ga_handle_setParami(handle, GA_HANDLE_PARAM_LOOP, 1);
-  ga_handle_play(handle);
+  /* Create and play streaming audio */
+  stream = gau_helper_stream_file(mixer, streamMgr,
+                                  "test.ogg", "ogg",
+                                  &destroyOnFinish, 0,
+#ifdef LOOP
+                                  &loopSrc, 0, -1);
+#else
+                                  0, 0, 0);
+#endif /* LOOP */
+  ga_handle_play(stream);
 
-  /* Infinite mix/queue/dispatch loop */
-  while(1)
+  /* Bounded mix/queue/dispatch loop */
+  while(!quit)
   {
-    numToQueue = ga_device_check(dev);
-    while(numToQueue--)
+    gau_manager_update(mgr);
+    if(ga_handle_finished(stream))
+      quit = 1;
+    else
     {
-      ga_mixer_stream(mixer);
-      ga_mixer_mix(mixer, buf);
-      ga_mixer_dispatch(mixer);
-      ga_device_queue(dev, &fmt, numSamples, (char*)buf);
+      printf("%d / %d\n", ga_handle_tell(stream, GA_TELL_PARAM_CURRENT), ga_handle_tell(stream, GA_TELL_PARAM_TOTAL));
+      gc_thread_sleep(1);
     }
-    printf("%d / %d\n", ga_handle_tell(handle, GA_TELL_PARAM_CURRENT), ga_handle_tell(handle, GA_TELL_PARAM_TOTAL));
   }
 
-  /* Clean up mixer/device/library */
-  free(buf);
-  ga_handle_destroy(handle);
-  ga_mixer_destroy(mixer);
+  /* Clean up manager/device/library */
+  gau_manager_destroy(mgr);
   ga_device_close(dev);
   gc_shutdown();
 

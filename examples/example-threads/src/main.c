@@ -6,140 +6,63 @@
 #include <stdio.h>
 #include <math.h>
 
-static void exampleOnFinish(ga_Handle* in_handle, void* in_context)
+/*#define LOOP*/
+
+static void destroyOnFinish(ga_Handle* in_handle, void* in_context)
 {
-  gc_int32 n = (gc_int32)in_context;
-  printf("Sound #%d finished\n", n);
   ga_handle_destroy(in_handle);
 }
-
-/* Example-specific thread context */
-typedef struct AudioThreadContext
-{
-  ga_Device* device;
-  ga_Mixer* mixer;
-  ga_Format* format;
-  gc_int32 kill;
-} AudioThreadContext;
-
-/* Mix thread logic */
-static gc_int32 mixThreadFunc(void* in_context)
-{
-  AudioThreadContext* context = (AudioThreadContext*)in_context;
-  ga_Mixer* m = context->mixer;
-  gc_int32 sampleSize = ga_format_sampleSize(context->format);
-  gc_int16* buf = (gc_int16*)malloc(m->numSamples * sampleSize);
-  while(!context->kill)
-  {
-    gc_int32 numToQueue = ga_device_check(context->device);
-    while(numToQueue--)
-    {
-      ga_mixer_mix(m, buf);
-      ga_device_queue(context->device, context->format, m->numSamples, buf);
-    }
-    gc_thread_sleep(5);
-  }
-  free(buf);
-  printf("Mixer thread terminated.\n");
-  return 0;
-}
-
-/* Stream thread logic */
-static gc_int32 streamThreadFunc(void* in_context)
-{
-  AudioThreadContext* context = (AudioThreadContext*)in_context;
-  ga_Mixer* m = context->mixer;
-  while(!context->kill)
-  {
-    ga_mixer_stream(m);
-    gc_thread_sleep(50);
-  }
-  printf("Stream thread terminated.\n");
-  return 0;
-}
-
 int main(int argc, char** argv)
 {
-  ga_Format fmt;
   ga_Device* dev;
-  gc_int32 numSamples;
+  gau_Manager* mgr;
   ga_Mixer* mixer;
-  ga_Sound* sound;
-  ga_Handle* handle;
+  ga_StreamManager* streamMgr;
   ga_Handle* stream;
-  gc_Thread* mixThread;
-  gc_Thread* streamThread;
-  AudioThreadContext context;
+#ifdef LOOP
+  gau_SampleSourceLoop* loopSrc;
+#endif /* LOOP */
+  gc_int32 quit = 0;
 
   /* Initialize library */
   gc_initialize(0);
 
   /* Initialize device */
-  dev = ga_device_open(GA_DEVICE_TYPE_OPENAL, 2);
+  dev = ga_device_open(GA_DEVICE_TYPE_OPENAL, 4);
   if(!dev)
     return 1;
 
-  /* Initialize mixer */
-  memset(&fmt, 0, sizeof(ga_Format));
-  fmt.bitsPerSample = 16;
-  fmt.numChannels = 2;
-  fmt.sampleRate = 44100;
-  numSamples = 2048;
-  mixer = ga_mixer_create(&fmt, numSamples);
+  /* Initialize manager */
+  mgr = gau_manager_create(dev, GAU_THREAD_POLICY_MULTI, 512);
+  mixer = gau_manager_mixer(mgr);
+  streamMgr = gau_manager_streamManager(mgr);
 
-  /* Initialize thread context */
-  context.device = dev;
-  context.mixer = mixer;
-  context.format = &fmt;
-  context.kill = 0;
-
-  /* Create and run mixer and stream threads */
-  mixThread = gc_thread_create(mixThreadFunc, &context, GC_THREAD_PRIORITY_HIGH, 64 * 1024);
-  gc_thread_run(mixThread);
-
-  streamThread = gc_thread_create(streamThreadFunc, &context, GC_THREAD_PRIORITY_HIGH, 64 * 1024);
-  gc_thread_run(streamThread);
-
-  /* Load static sound */
-  sound = gau_sound_file("test.wav", GA_FILE_FORMAT_WAV, 0);
-
-  /* Create and play streaming sound */
-  stream = gau_stream_file(mixer, 0, 131072, "test.ogg", GA_FILE_FORMAT_OGG, 0);
-  ga_handle_setCallback(stream, &exampleOnFinish, 0);
-  ga_handle_setParami(stream, GA_HANDLE_PARAM_LOOP, 0);
+  /* Create and play streaming audio */
+  stream = gau_helper_stream_file(mixer, streamMgr,
+                                  "test.ogg", "ogg",
+                                  &destroyOnFinish, 0,
+#ifdef LOOP
+                                  &loopSrc, 0, -1);
+#else
+                                  0, 0, 0);
+#endif /* LOOP */
   ga_handle_play(stream);
 
   /* Bounded mix/queue/dispatch loop */
+  while(!quit)
   {
-    gc_int32 count = 0;
-
-    while(!context.kill)
+    gau_manager_update(mgr);
+    if(ga_handle_finished(stream))
+      quit = 1;
+    else
     {
-      ga_mixer_dispatch(mixer);
-      if(count == 0)
-      {
-        handle = ga_handle_create(mixer, sound);
-        ga_handle_setCallback(handle, &exampleOnFinish, (void*)(count / 200));
-        ga_handle_setParami(handle, GA_HANDLE_PARAM_LOOP, 1);
-        ga_handle_play(handle);
-      }
-      ++count;
-
-      if(ga_handle_finished(stream))
-      {
-        context.kill = 1;
-        gc_thread_join(mixThread);
-        gc_thread_join(streamThread);
-        break;
-      }
       printf("%d / %d\n", ga_handle_tell(stream, GA_TELL_PARAM_CURRENT), ga_handle_tell(stream, GA_TELL_PARAM_TOTAL));
       gc_thread_sleep(1);
     }
   }
 
-  /* Clean up sound/mixer/device/library */
-  ga_sound_destroy(sound);
-  ga_mixer_destroy(mixer);
+  /* Clean up manager/device/library */
+  gau_manager_destroy(mgr);
   ga_device_close(dev);
   gc_shutdown();
 

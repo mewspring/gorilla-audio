@@ -7,6 +7,120 @@
 
 #include <assert.h>
 
+#ifdef _WIN32
+#pragma warning(disable:4996)
+#endif /* _WIN32 */
+
+/* High-Level Manager */
+static gc_int32 gauX_mixThreadFunc(void* in_context)
+{
+  gau_Manager* ctx = (gau_Manager*)in_context;
+  ga_Mixer* m = ctx->mixer;
+  gc_int32 sampleSize = ga_format_sampleSize(&ctx->format);
+  while(!ctx->killThreads)
+  {
+    gc_int32 numToQueue = ga_device_check(ctx->device);
+    while(numToQueue--)
+    {
+      ga_mixer_mix(m, ctx->mixBuffer);
+      ga_device_queue(ctx->device, &ctx->format, m->numSamples, ctx->mixBuffer);
+    }
+    gc_thread_sleep(5);
+  }
+  return 0;
+}
+static gc_int32 gauX_streamThreadFunc(void* in_context)
+{
+  gau_Manager* ctx = (gau_Manager*)in_context;
+  ga_StreamManager* mgr = ctx->streamMgr;
+  while(!ctx->killThreads)
+  {
+    ga_stream_manager_stream(mgr);
+    gc_thread_sleep(50);
+  }
+  return 0;
+}
+gau_Manager* gau_manager_create(ga_Device* in_device,
+                                gc_int32 in_threadPolicy,
+                                gc_int32 in_bufferSamples)
+{
+  gau_Manager* ret = gcX_ops->allocFunc(sizeof(gau_Manager));
+
+  assert(in_device);
+  assert(in_threadPolicy == GAU_THREAD_POLICY_SINGLE ||
+         in_threadPolicy == GAU_THREAD_POLICY_MULTI);
+  assert(in_bufferSamples > 128);
+
+  /* Initialize mixer */
+  memset(&ret->format, 0, sizeof(ga_Format));
+  ret->format.bitsPerSample = 16;
+  ret->format.numChannels = 2;
+  ret->format.sampleRate = 44100;
+  ret->device = in_device;
+  ret->mixer = ga_mixer_create(&ret->format, in_bufferSamples);
+  ret->streamMgr = ga_stream_manager_create();
+  ret->sampleSize = ga_format_sampleSize(&ret->format);
+  ret->mixBuffer = (gc_int16*)malloc(ret->mixer->numSamples * ret->sampleSize);
+
+  /* Create and run mixer and stream threads */
+  ret->threadPolicy = in_threadPolicy;
+  ret->killThreads = 0;
+  if(ret->threadPolicy == GAU_THREAD_POLICY_MULTI)
+  {
+    ret->mixThread = gc_thread_create(gauX_mixThreadFunc, ret, GC_THREAD_PRIORITY_HIGH, 64 * 1024);
+    ret->streamThread = gc_thread_create(gauX_streamThreadFunc, ret, GC_THREAD_PRIORITY_HIGH, 64 * 1024);
+    gc_thread_run(ret->mixThread);
+    gc_thread_run(ret->streamThread);
+  }
+  else
+  {
+    ret->mixThread = 0;
+    ret->streamThread = 0;
+  }
+
+  return ret;
+}
+void gau_manager_update(gau_Manager* in_mgr)
+{
+  if(in_mgr->threadPolicy == GAU_THREAD_POLICY_SINGLE)
+  {
+    gc_int16* buf = in_mgr->mixBuffer;
+    ga_Mixer* mixer = in_mgr->mixer;
+    ga_Device* dev = in_mgr->device;
+    ga_Format* fmt = &in_mgr->format;
+    gc_int32 numToQueue = ga_device_check(dev);
+    while(numToQueue--)
+    {
+      ga_mixer_mix(mixer, buf);
+      ga_device_queue(dev, fmt, mixer->numSamples, buf);
+    }
+    ga_stream_manager_stream(in_mgr->streamMgr);
+  }
+  ga_mixer_dispatch(in_mgr->mixer);
+}
+ga_Mixer* gau_manager_mixer(gau_Manager* in_mgr)
+{
+  return in_mgr->mixer;
+}
+ga_StreamManager* gau_manager_streamManager(gau_Manager* in_mgr)
+{
+  return in_mgr->streamMgr;
+}
+void gau_manager_destroy(gau_Manager* in_mgr)
+{
+  if(in_mgr->threadPolicy == GAU_THREAD_POLICY_MULTI)
+  {
+    in_mgr->killThreads = 1;
+    gc_thread_join(in_mgr->streamThread);
+    gc_thread_join(in_mgr->mixThread);
+  }
+
+  /* Clean up mixer and stream manager */
+  ga_stream_manager_destroy(in_mgr->streamMgr);
+  ga_mixer_destroy(in_mgr->mixer);
+  gcX_ops->freeFunc(in_mgr->mixBuffer);
+}
+
 /* File-Based Data Source */
 typedef struct gau_DataSourceFileContext {
   FILE* f;
@@ -777,7 +891,7 @@ gc_int32 gauX_sample_source_sound_end(void* in_context)
 gc_int32 gauX_sample_source_sound_ready(void* in_context, gc_int32 in_numSamples)
 {
   gau_SampleSourceSoundContext* ctx = &((gau_SampleSourceSound*)in_context)->context;
-  return in_numSamples <= (ctx->numSamples - ctx->pos);
+  return 1;
 }
 gc_int32 gauX_sample_source_sound_seek(void* in_context, gc_int32 in_sampleOffset)
 {
@@ -823,4 +937,97 @@ ga_SampleSource* gau_sample_source_create_sound(ga_Sound* in_sound)
   ret->sampleSrc.tellFunc = &gauX_sample_source_sound_tell;
   ret->sampleSrc.closeFunc = &gauX_sample_source_sound_close;
   return (ga_SampleSource*)ret;
+}
+
+/* Helper functions */
+ga_Sound* gau_helper_sound_file(const char* in_filename, const char* in_format)
+{
+  ga_Sound* ret = 0;
+  ga_DataSource* dataSrc = gau_data_source_create_file(in_filename);
+  if(dataSrc)
+  {
+    ga_SampleSource* sampleSrc = 0;
+    if(stricmp(in_format, "ogg") == 0)
+      sampleSrc = gau_sample_source_create_ogg(dataSrc);
+    else if(stricmp(in_format, "wav") == 0)
+      sampleSrc = gau_sample_source_create_wav(dataSrc);
+    ga_data_source_release(dataSrc);
+    if(sampleSrc)
+    {
+      ret = ga_sound_create(sampleSrc);
+      ga_sample_source_release(sampleSrc);
+    }
+  }
+  return ret;
+}
+ga_Handle* gau_helper_sound(ga_Mixer* in_mixer, ga_Sound* in_sound,
+                            ga_FinishCallback in_callback, void* in_context,
+                            gau_SampleSourceLoop** out_loopSrc, gc_int32 in_loopStart, gc_int32 in_loopEnd)
+{
+  ga_Handle* ret = 0;
+  ga_SampleSource* sampleSrc = sampleSrc = gau_sample_source_create_sound(in_sound);
+  if(sampleSrc)
+  {
+    ga_SampleSource* sampleSrc2 = sampleSrc;
+    if(out_loopSrc)
+    {
+      gau_SampleSourceLoop* loopSampleSrc = gau_sample_source_create_loop(sampleSrc);
+      gau_sample_source_loop_set(loopSampleSrc, in_loopEnd, in_loopStart);
+      ga_sample_source_release(sampleSrc);
+      *out_loopSrc = loopSampleSrc;
+      sampleSrc2 = (ga_SampleSource*)loopSampleSrc;
+    }
+    if(sampleSrc2)
+    {
+      ret = ga_handle_create(in_mixer, sampleSrc2);
+      if(sampleSrc == sampleSrc2)
+        ga_sample_source_release(sampleSrc2);
+      ga_handle_setCallback(ret, in_callback, in_context);
+    }
+  }
+  return ret;
+}
+ga_Handle* gau_helper_stream_file(ga_Mixer* in_mixer, ga_StreamManager* in_streamMgr,
+                                  const char* in_filename, const char* in_format,
+                                  ga_FinishCallback in_callback, void* in_context,
+                                  gau_SampleSourceLoop** out_loopSrc, gc_int32 in_loopStart, gc_int32 in_loopEnd)
+{
+  ga_Handle* ret = 0;
+  ga_DataSource* dataSrc = gau_data_source_create_file(in_filename);
+  if(dataSrc)
+  {
+    ga_SampleSource* sampleSrc = 0;
+    if(stricmp(in_format, "ogg") == 0)
+      sampleSrc = gau_sample_source_create_ogg(dataSrc);
+    else if(stricmp(in_format, "wav") == 0)
+      sampleSrc = gau_sample_source_create_wav(dataSrc);
+    ga_data_source_release(dataSrc);
+    if(sampleSrc)
+    {
+      ga_SampleSource* sampleSrc2 = sampleSrc;
+      if(out_loopSrc)
+      {
+        gau_SampleSourceLoop* loopSampleSrc = gau_sample_source_create_loop(sampleSrc);
+        gau_sample_source_loop_set(loopSampleSrc, in_loopEnd, in_loopStart);
+        ga_sample_source_release(sampleSrc);
+        *out_loopSrc = loopSampleSrc;
+        sampleSrc2 = (ga_SampleSource*)loopSampleSrc;
+      }
+      if(sampleSrc2)
+      {
+        ga_SampleSource* streamSampleSrc = gau_sample_source_create_stream(in_streamMgr,
+                                                                           sampleSrc2,
+                                                                           131072);
+        if(sampleSrc == sampleSrc2)
+          ga_sample_source_release(sampleSrc2);
+        if(streamSampleSrc)
+        {
+          ret = ga_handle_create(in_mixer, streamSampleSrc);
+          ga_sample_source_release(streamSampleSrc);
+          ga_handle_setCallback(ret, in_callback, in_context);
+        }
+      }
+    }
+  }
+  return ret;
 }
