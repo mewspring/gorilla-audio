@@ -2,27 +2,23 @@ ROAD MAP
 ---
 
 TODO:
-- Add support for mono/8-bit mixer formats
-- Apply volatile keyword to values that are set/checked in non-mutexed multi-threaded code
-- Preserve sound data when a sound is destroyed while it is still in-use by a handle
-  - Defer the actual cleanup in ga_sound_destroy()
-  - When last handle actively using the sound is dead, actually clean out the data
-  - If the sound does not own the data, either assert or make a copy of the data
-- Mixer-side enveloping
+- Port to Linux and Mac (using OpenAL)
 - Multi-stream-synchronization
 - Handle-locking for atomic groups of control commands
-- Implement OpenSL (Android 2.3+) device
-- Port to Linux and Mac
-
-BACKLOG:
-- Improve extensibility of GAU file loading/streaming
-- Rename GA_FILE_FORMAT* to GAU_FILE_FORMAT* as needed
-- Improve user-based device extensibility
-- Improve error-handling
-- Implement OpenMAX AL device
-- Implement DirectSound device
+- Improve error reporting and handling
 - Doxygen API documentation
 
-KNOWN ISSUES:
-- Crashes when attempting to use a non-power-of-two mixer size
-- Crashes when destroying a ga_Sound while the mixer is mixing it
+BACKLOG:
+- Implement additional devices:
+  - DirectSound 8 device (Windows)
+  - WinMM device (Windows)
+  - ALSA (Linux)
+  - CoreAudio (OSX/iOS)
+  - OpenSL (Android 2.3+)
+  - OpenMAX AL device (Multi)
+- Allow ga_Sound to wrap external objects
+- Add support for mono/8-bit mixer formats
+- Surround sound (multi-channel) input and output formats
+- Microphone recording support
+- DSP filters (reverb, compressor, low-pass, chorus, echo, eq, etc...)
+- 3D audio mixer
