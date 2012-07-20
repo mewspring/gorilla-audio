@@ -1,24 +1,52 @@
 ROAD MAP
 ---
 
-TODO:
-- Port to Linux (using OpenAL)
-- Multi-stream-synchronization
-- Handle-locking for atomic groups of control commands
-- Improve error reporting and handling
-- Doxygen API documentation
-
-BACKLOG:
-- Implement additional devices:
-  - DirectSound 8 device (Windows)
+COMPATIBILITY:
+- Implement more platforms/devices:
+  - Linux (using OpenAL)
+  - DirectSound device (Windows)
   - WinMM device (Windows)
   - ALSA (Linux)
   - CoreAudio (OSX/iOS)
   - OpenSL (Android 2.3+)
   - OpenMAX AL device (Multi)
-- Allow ga_Sound to wrap external objects
-- Add support for mono/8-bit mixer formats
+
+IMPROVEMENTS:
+- Remove support for in-place sound data (always copy)
+- Propagate ready() func call through pass-through sample sources
+- Handle group support (synchronized start/seek/pause/stop)
+- Opaque handles (ints)
+- Mono mixer
+- 8-bit mixer
+- Arbitrary mixer rate
+- Push handles writeable from main thread into an internal buffer
+- Support for enumerating devices
+- Specifiable/queryable device format
+
+USABILITY:
+- Better error codes
+- Doxygen comments for the API
+- Glossary of terms
+- Tutorial on how to get started (akin to the example code)
+- Documentation on how to extend the systems
+
+DSP FILTERS:
+- Create framework for apply DSP filters
+- Implement support for common filters:
+  - Reverb, compressor, distortion, echo, equalizer, flanger, gargle, chorus, high-pass, low-pass, wah-wah
+
+LUXURY FEATURES:
+- Input audio recording (recording devices + wrapping samplesource)
+- Optimize mixer (less branches, SIMD)
+- Tracker support (MOD/S3M/XM/IT)
 - Surround sound (multi-channel) input and output formats
-- Microphone recording support
-- DSP filters (reverb, compressor, low-pass, chorus, echo, eq, etc...)
-- 3D audio mixer
+- Support for multiple ga_StreamManager threads
+- Floating-point format support
+- MP3 support (optional)
+- AIFF support
+- OGG Opus support
+- Network-streaming audio (OGG, MP3, ShoutCast, IceCast)
+- Handle-locking for atomic groups of control commands
+
+KNOWN BUGS:
+- Seeking can currently cause a handle to have fewer samples than expected mid-mix (rare race condition, can cause stutter/desync)
