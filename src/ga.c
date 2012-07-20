@@ -260,7 +260,7 @@ ga_Sound* ga_sound_create(ga_SampleSource* in_sampleSrc)
     dataSize = sampleSize * totalSamples;
     data = gcX_ops->allocFunc(dataSize);
     ga_sample_source_read(sampleSrc, data, totalSamples, 0, 0);
-    ret = ga_sound_createRaw(data, dataSize, &format, 0);
+    ret = ga_sound_createRaw(data, dataSize, &format);
     if(!ret)
       gcX_ops->freeFunc(data);
   }
@@ -281,26 +281,20 @@ ga_Sound* ga_sound_create(ga_SampleSource* in_sampleSrc)
       }
       totalSamples += numSamplesRead;
     }
-    ret = ga_sound_createRaw(data, totalSamples * sampleSize, &format, 0);
+    ret = ga_sound_createRaw(data, totalSamples * sampleSize, &format);
     if(!ret)
       gcX_ops->freeFunc(data);
   }
   return ret;
 }
 ga_Sound* ga_sound_createRaw(void* in_data, gc_int32 in_size,
-                             ga_Format* in_format, gc_int32 in_copy)
+                             ga_Format* in_format)
 {
   ga_Sound* ret = gcX_ops->allocFunc(sizeof(ga_Sound));
-  ret->isCopy = in_copy;
   ret->size = in_size;
   ret->numSamples = in_size / ga_format_sampleSize(in_format);
-  if(in_copy)
-  {
-    ret->data = gcX_ops->allocFunc(in_size);
-    memcpy(ret->data, in_data, in_size);
-  }
-  else
-    ret->data = in_data;
+  ret->data = gcX_ops->allocFunc(in_size);
+  memcpy(ret->data, in_data, in_size);
   memcpy(&ret->format, in_format, sizeof(ga_Format));
   ret->refMutex = gc_mutex_create();
   ret->refCount = 1;
@@ -316,8 +310,7 @@ void ga_sound_format(ga_Sound* in_sound, ga_Format* out_format)
 }
 static void gaX_sound_destroy(ga_Sound* in_sound)
 {
-  if(in_sound->isCopy)
-    gcX_ops->freeFunc(in_sound->data);
+  gcX_ops->freeFunc(in_sound->data);
   gcX_ops->freeFunc(in_sound);
 }
 void ga_sound_acquire(ga_Sound* in_sound)

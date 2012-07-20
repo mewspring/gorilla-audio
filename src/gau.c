@@ -888,11 +888,6 @@ gc_int32 gauX_sample_source_sound_end(void* in_context)
   gau_SampleSourceSoundContext* ctx = &((gau_SampleSourceSound*)in_context)->context;
   return ctx->pos >= ctx->numSamples;
 }
-gc_int32 gauX_sample_source_sound_ready(void* in_context, gc_int32 in_numSamples)
-{
-  gau_SampleSourceSoundContext* ctx = &((gau_SampleSourceSound*)in_context)->context;
-  return 1;
-}
 gc_int32 gauX_sample_source_sound_seek(void* in_context, gc_int32 in_sampleOffset)
 {
   gau_SampleSourceSoundContext* ctx = &((gau_SampleSourceSound*)in_context)->context;
@@ -932,7 +927,6 @@ ga_SampleSource* gau_sample_source_create_sound(ga_Sound* in_sound)
   ret->sampleSrc.flags = GA_FLAG_THREADSAFE | GA_FLAG_SEEKABLE;
   ret->sampleSrc.readFunc = &gauX_sample_source_sound_read;
   ret->sampleSrc.endFunc = &gauX_sample_source_sound_end;
-  ret->sampleSrc.readyFunc = &gauX_sample_source_sound_ready;
   ret->sampleSrc.seekFunc = &gauX_sample_source_sound_seek;
   ret->sampleSrc.tellFunc = &gauX_sample_source_sound_tell;
   ret->sampleSrc.closeFunc = &gauX_sample_source_sound_close;

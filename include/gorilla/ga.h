@@ -145,7 +145,6 @@ typedef struct ga_Sound {
   void* data;
   gc_uint32 size;
   ga_Format format;
-  gc_int32 isCopy;
   gc_int32 numSamples;
   gc_int32 refCount;
   gc_Mutex* refMutex;
@@ -153,7 +152,7 @@ typedef struct ga_Sound {
 
 ga_Sound* ga_sound_create(ga_SampleSource* in_sampleSrc);
 ga_Sound* ga_sound_createRaw(void* in_data, gc_int32 in_size,
-                             ga_Format* in_format, gc_int32 in_copy);
+                             ga_Format* in_format);
 gc_int32 ga_sound_numSamples(ga_Sound* in_sound);
 void ga_sound_format(ga_Sound* in_sound, ga_Format* out_format);
 void ga_sound_acquire(ga_Sound* in_sound);

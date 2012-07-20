@@ -12,9 +12,7 @@ COMPATIBILITY:
   - OpenMAX AL device (Multi)
 
 IMPROVEMENTS:
-- Remove support for in-place sound data (always copy)
-- Propagate ready() func call through pass-through sample sources
-- Handle group support (synchronized start/seek/pause/stop)
+- Handle-group support (synchronized start/seek/pause/stop)
 - Opaque handles (ints)
 - Mono mixer
 - 8-bit mixer
