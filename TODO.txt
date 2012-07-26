@@ -22,7 +22,7 @@ IMPROVEMENTS:
 - Specifiable/queryable device format
 
 USABILITY:
-- Better error codes
+- Better error codes and reporting
 - Doxygen comments for the API
 - Glossary of terms
 - Tutorial on how to get started (akin to the example code)

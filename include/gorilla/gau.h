@@ -59,6 +59,9 @@ ga_Sound* gau_helper_sound_file(const char* in_filename, const char* in_format);
 ga_Handle* gau_helper_sound(ga_Mixer* in_mixer, ga_Sound* in_sound,
                             ga_FinishCallback in_callback, void* in_context,
                             gau_SampleSourceLoop** out_loopSrc, gc_int32 in_loopStart, gc_int32 in_loopEnd);
+ga_Handle* gau_helper_stream_data(ga_Mixer* in_mixer, ga_StreamManager* in_streamMgr, const char* in_format,
+                                  ga_DataSource* in_dataSrc, ga_FinishCallback in_callback, void* in_context,
+                                  gau_SampleSourceLoop** out_loopSrc, gc_int32 in_loopStart, gc_int32 in_loopEnd);
 ga_Handle* gau_helper_stream_file(ga_Mixer* in_mixer, ga_StreamManager* in_streamMgr,
                                   const char* in_filename, const char* in_format,
                                   ga_FinishCallback in_callback, void* in_context,
