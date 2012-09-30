@@ -13,7 +13,7 @@ extern "C"
 */
 #define GA_VERSION_MAJOR 0
 #define GA_VERSION_MINOR 2
-#define GA_VERSION_REV 2
+#define GA_VERSION_REV 3
 
 gc_int32 ga_version_check(gc_int32 in_major, gc_int32 in_minor, gc_int32 in_rev);
 

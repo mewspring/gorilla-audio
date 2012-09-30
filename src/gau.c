@@ -302,75 +302,71 @@ typedef struct ga_WavData
 
 void gauX_data_source_advance(ga_DataSource* in_dataSrc, gc_int32 in_delta)
 {
-  char buffer[256];
-  while(in_delta > 0)
+  if(ga_data_source_flags(in_dataSrc) & GA_FLAG_SEEKABLE)
+    ga_data_source_seek(in_dataSrc, in_delta, GA_SEEK_ORIGIN_CUR);
+  else
   {
-    gc_int32 advance = in_delta > 256 ? 256 : in_delta;
-    gc_int32 bytesAdvanced = ga_data_source_read(in_dataSrc, &buffer[0], 1, advance);
-    in_delta -= bytesAdvanced;
+    char buffer[256];
+    while(in_delta > 0)
+    {
+      gc_int32 advance = in_delta > 256 ? 256 : in_delta;
+      gc_int32 bytesAdvanced = ga_data_source_read(in_dataSrc, &buffer[0], 1, advance);
+      in_delta -= bytesAdvanced;
+    }
   }
 }
 gc_result gauX_sample_source_wav_load_header(ga_DataSource* in_dataSrc, ga_WavData* out_wavData)
 {
   /* TODO: Make this work with non-blocking reads? Need to get this data... */
-  char id[5];
   ga_WavData* wavData = out_wavData;
   gc_int32 seekable = ga_data_source_flags(in_dataSrc) & GA_FLAG_SEEKABLE ? 1 : 0;
   gc_int32 dataOffset = 0;
+  char id[5];
+  id[4] = 0;
   if(!in_dataSrc)
     return GC_ERROR_GENERIC;
   ga_data_source_read(in_dataSrc, &id[0], sizeof(char), 4); /* 'RIFF' */
-  id[4] = 0;
+  dataOffset += 4;
   if(!strcmp(id, "RIFF"))
   {
     ga_data_source_read(in_dataSrc, &wavData->fileSize, sizeof(gc_int32), 1);
     ga_data_source_read(in_dataSrc, &id[0], sizeof(char), 4); /* 'WAVE' */
+    dataOffset += 8;
     if(!strcmp(id, "WAVE"))
     {
-      gc_int32 seekSuccess;
-      gc_int32 dataFound;
-      gc_int32 fmtStart;
-      ga_data_source_read(in_dataSrc, &id[0], sizeof(char), 4); /* 'fmt ' */
-      ga_data_source_read(in_dataSrc, &wavData->fmtSize, sizeof(gc_int32), 1);
-      if(seekable)
-        fmtStart = ga_data_source_tell(in_dataSrc);
-      ga_data_source_read(in_dataSrc, &wavData->fmtTag, sizeof(gc_int16), 1);
-      ga_data_source_read(in_dataSrc, &wavData->channels, sizeof(gc_int16), 1);
-      ga_data_source_read(in_dataSrc, &wavData->sampleRate, sizeof(gc_int32), 1);
-      ga_data_source_read(in_dataSrc, &wavData->bytesPerSec, sizeof(gc_int32), 1);
-      ga_data_source_read(in_dataSrc, &wavData->blockAlign, sizeof(gc_int16), 1);
-      ga_data_source_read(in_dataSrc, &wavData->bitsPerSample, sizeof(gc_int16), 1);
-      if(seekable)
-      {
-        seekSuccess = ga_data_source_seek(in_dataSrc, fmtStart + wavData->fmtSize, GA_SEEK_ORIGIN_SET);
-        assert(seekSuccess >= 0);
-      }
-      else
-        gauX_data_source_advance(in_dataSrc, wavData->fmtSize - 16);
-      dataOffset = 20 + wavData->fmtSize;
+      gc_int32 dataFound = 0;
+      gc_int32 hdrFound = 0;
       do
       {
-        ga_data_source_read(in_dataSrc, &id[0], sizeof(char), 4); /* 'data' */
-        ga_data_source_read(in_dataSrc, &wavData->dataSize, sizeof(gc_int32), 1);
-        dataFound = !strcmp(id, "data");
+        gc_int32 chunkSize = 0;
+        ga_data_source_read(in_dataSrc, &id[0], sizeof(char), 4);
+        ga_data_source_read(in_dataSrc, &chunkSize, sizeof(gc_int32), 1);
         dataOffset += 8;
-        wavData->dataOffset = dataOffset;
-        if(!dataFound)
+        if(!hdrFound && !strcmp(id, "fmt ")) /* 'fmt ' */
         {
-          if(seekable)
-          {
-            seekSuccess = ga_data_source_seek(in_dataSrc, wavData->dataSize, GA_SEEK_ORIGIN_CUR);
-            assert(seekSuccess >= 0);
-          }
-          else
-          {
-            /* TODO: Find another way to advance */
-            gauX_data_source_advance(in_dataSrc, wavData->dataSize);
-          }
-          dataOffset += wavData->dataSize;
+          wavData->fmtSize = chunkSize;
+          ga_data_source_read(in_dataSrc, &wavData->fmtTag, sizeof(gc_int16), 1);
+          ga_data_source_read(in_dataSrc, &wavData->channels, sizeof(gc_int16), 1);
+          ga_data_source_read(in_dataSrc, &wavData->sampleRate, sizeof(gc_int32), 1);
+          ga_data_source_read(in_dataSrc, &wavData->bytesPerSec, sizeof(gc_int32), 1);
+          ga_data_source_read(in_dataSrc, &wavData->blockAlign, sizeof(gc_int16), 1);
+          ga_data_source_read(in_dataSrc, &wavData->bitsPerSample, sizeof(gc_int16), 1);
+          gauX_data_source_advance(in_dataSrc, chunkSize - 16);
+          hdrFound = 1;
         }
-      } while(!dataFound); /* TODO: Need End-Of-Data support in Data Sources */
-      if(dataFound)
+        else if(!dataFound && !strcmp(id, "data")) /* 'data' */
+        {
+          wavData->dataSize = chunkSize;
+          wavData->dataOffset = dataOffset;
+          dataFound = 1;
+        }
+        else
+        {
+          gauX_data_source_advance(in_dataSrc, chunkSize);
+        }
+        dataOffset += chunkSize;
+      } while(!(hdrFound && dataFound)); /* TODO: Need End-Of-Data support in Data Sources */
+      if(hdrFound && dataFound)
         return GC_SUCCESS;
     }
   }
