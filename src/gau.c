@@ -109,6 +109,10 @@ ga_StreamManager* gau_manager_streamManager(gau_Manager* in_mgr)
 {
   return in_mgr->streamMgr;
 }
+ga_Device* gau_manager_device(gau_Manager* in_mgr)
+{
+  return in_mgr->device;
+}
 void gau_manager_destroy(gau_Manager* in_mgr)
 {
   if(in_mgr->threadPolicy == GAU_THREAD_POLICY_MULTI)

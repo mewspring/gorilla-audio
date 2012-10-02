@@ -39,6 +39,7 @@ gau_Manager* gau_manager_create(gc_int32 in_devType,
 void gau_manager_update(gau_Manager* in_mgr);
 ga_Mixer* gau_manager_mixer(gau_Manager* in_mgr);
 ga_StreamManager* gau_manager_streamManager(gau_Manager* in_mgr);
+ga_Device* gau_manager_device(gau_Manager* in_mgr);
 void gau_manager_destroy(gau_Manager* in_mgr);
 
 /* Concrete Source Implementations */
