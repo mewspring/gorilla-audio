@@ -1,6 +1,12 @@
 #include "gorilla/ga.h"
 
+#ifdef ENABLE_OPENAL
 #include "gorilla/ga_openal.h"
+#endif /* ENABLE_OPENAL */
+
+#ifdef ENABLE_DIRECTSOUND
+#include "gorilla/ga_directsound.h"
+#endif /* ENABLE_DIRECTSOUND */
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -35,15 +41,35 @@ gc_int32 ga_format_toSamples(ga_Format* in_format, gc_float32 in_seconds)
 }
 
 /* Device Functions */
-ga_Device* ga_device_open(int in_type, gc_int32 in_numBuffers)
+ga_Device* ga_device_open(int in_type, gc_int32 in_numBuffers, gc_int32 in_numSamples)
 {
+  while(in_type == GA_DEVICE_TYPE_DEFAULT)
+  {
+#ifdef ENABLE_DIRECTSOUND
+    in_type = GA_DEVICE_TYPE_DIRECTSOUND; break;
+#endif /* ENABLE_DIRECTSOUND */
+
+#ifdef ENABLE_OPENAL
+    in_type = GA_DEVICE_TYPE_OPENAL; break;
+#endif /* ENABLE_OPENAL */
+
+    in_type = GA_DEVICE_TYPE_UNKNOWN; break;
+  }
   if(in_type == GA_DEVICE_TYPE_OPENAL)
   {
-#ifdef LINK_AGAINST_OPENAL
-    return (ga_Device*)gaX_device_open_openAl(in_numBuffers);
+#ifdef ENABLE_OPENAL
+    return (ga_Device*)gaX_device_open_openAl(in_numBuffers, in_numSamples);
 #else
     return 0;
-#endif /* LINK_AGAINST_OPENAL */
+#endif /* ENABLE_OPENAL */
+  }
+  else if(in_type == GA_DEVICE_TYPE_DIRECTSOUND)
+  {
+#ifdef ENABLE_DIRECTSOUND
+    return (ga_Device*)gaX_device_open_directSound(in_numBuffers, in_numSamples);
+#else
+    return 0;
+#endif /* ENABLE_DIRECTSOUND */
   }
   else
     return 0;
@@ -52,13 +78,23 @@ gc_result ga_device_close(ga_Device* in_device)
 {
   if(in_device->devType == GA_DEVICE_TYPE_OPENAL)
   {
-#ifdef LINK_AGAINST_OPENAL
+#ifdef ENABLE_OPENAL
     ga_DeviceImpl_OpenAl* dev = (ga_DeviceImpl_OpenAl*)in_device;
     gaX_device_close_openAl(dev);
     return GC_SUCCESS;
 #else
     return GC_ERROR_GENERIC;
-#endif /* LINK_AGAINST_OPENAL */
+#endif /* ENABLE_OPENAL */
+  }
+  else if(in_device->devType == GA_DEVICE_TYPE_DIRECTSOUND)
+  {
+#ifdef ENABLE_DIRECTSOUND
+    ga_DeviceImpl_DirectSound* dev = (ga_DeviceImpl_DirectSound*)in_device;
+    gaX_device_close_directSound(dev);
+    return GC_SUCCESS;
+#else
+    return 0;
+#endif /* ENABLE_DIRECTSOUND */
   }
   return GC_ERROR_GENERIC;
 }
@@ -66,12 +102,21 @@ gc_int32 ga_device_check(ga_Device* in_device)
 {
   if(in_device->devType == GA_DEVICE_TYPE_OPENAL)
   {
-#ifdef LINK_AGAINST_OPENAL
+#ifdef ENABLE_OPENAL
     ga_DeviceImpl_OpenAl* dev = (ga_DeviceImpl_OpenAl*)in_device;
     return gaX_device_check_openAl(dev);
 #else
     return GC_ERROR_GENERIC;
-#endif /* LINK_AGAINST_OPENAL */
+#endif /* ENABLE_OPENAL */
+  }
+  else if(in_device->devType == GA_DEVICE_TYPE_DIRECTSOUND)
+  {
+#ifdef ENABLE_DIRECTSOUND
+    ga_DeviceImpl_DirectSound* dev = (ga_DeviceImpl_DirectSound*)in_device;
+    return gaX_device_check_directSound(dev);
+#else
+    return GC_ERROR_GENERIC;
+#endif /* ENABLE_DIRECTSOUND */
   }
   return GC_ERROR_GENERIC;
 }
@@ -82,12 +127,21 @@ gc_result ga_device_queue(ga_Device* in_device,
 {
   if(in_device->devType == GA_DEVICE_TYPE_OPENAL)
   {
-#ifdef LINK_AGAINST_OPENAL
+#ifdef ENABLE_OPENAL
     ga_DeviceImpl_OpenAl* dev = (ga_DeviceImpl_OpenAl*)in_device;
     return gaX_device_queue_openAl(dev, in_format, in_numSamples, in_buffer);
 #else
     return GC_ERROR_GENERIC;
-#endif /* LINK_AGAINST_OPENAL */
+#endif /* ENABLE_OPENAL */
+  }
+  else if(in_device->devType == GA_DEVICE_TYPE_DIRECTSOUND)
+  {
+#ifdef ENABLE_DIRECTSOUND
+    ga_DeviceImpl_DirectSound* dev = (ga_DeviceImpl_DirectSound*)in_device;
+    return gaX_device_queue_directSound(dev, in_format, in_numSamples, in_buffer);
+#else
+    return GC_ERROR_GENERIC;
+#endif /* ENABLE_DIRECTSOUND */
   }
   return GC_ERROR_GENERIC;
 }
@@ -349,8 +403,6 @@ ga_Handle* ga_handle_create(ga_Mixer* in_mixer,
                             ga_SampleSource* in_sampleSrc)
 {
   ga_Handle* h = (ga_Handle*)gcX_ops->allocFunc(sizeof(ga_Handle));
-  h->streamLink.next = 0;
-  h->streamLink.prev = 0;
   ga_sample_source_acquire(in_sampleSrc);
   h->sampleSrc = in_sampleSrc;
   h->finished = 0;
@@ -723,7 +775,7 @@ gc_result ga_mixer_dispatch(ga_Mixer* in_mixer)
     /* Remove finished handles and call callbacks */
     if(ga_handle_destroyed(oldHandle))
     {
-      if(!oldHandle->mixLink.next && !oldHandle->streamLink.next)
+      if(!oldHandle->mixLink.next)
       {
         /* NOTES ABOUT THREADING POLICY WITH REGARD TO LINKED LISTS: */
         /* Only a single thread may iterate through any list */

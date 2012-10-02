@@ -40,23 +40,26 @@ static gc_int32 gauX_streamThreadFunc(void* in_context)
   }
   return 0;
 }
-gau_Manager* gau_manager_create(ga_Device* in_device,
+gau_Manager* gau_manager_create(gc_int32 in_devType,
                                 gc_int32 in_threadPolicy,
+                                gc_int32 in_numBuffers,
                                 gc_int32 in_bufferSamples)
 {
   gau_Manager* ret = gcX_ops->allocFunc(sizeof(gau_Manager));
 
-  assert(in_device);
   assert(in_threadPolicy == GAU_THREAD_POLICY_SINGLE ||
          in_threadPolicy == GAU_THREAD_POLICY_MULTI);
   assert(in_bufferSamples > 128);
+  assert(in_numBuffers >= 2);
+
+  ret->device = ga_device_open(in_devType, in_numBuffers, in_bufferSamples);
+  assert(ret->device);
 
   /* Initialize mixer */
   memset(&ret->format, 0, sizeof(ga_Format));
   ret->format.bitsPerSample = 16;
   ret->format.numChannels = 2;
   ret->format.sampleRate = 44100;
-  ret->device = in_device;
   ret->mixer = ga_mixer_create(&ret->format, in_bufferSamples);
   ret->streamMgr = ga_stream_manager_create();
   ret->sampleSize = ga_format_sampleSize(&ret->format);
@@ -119,6 +122,8 @@ void gau_manager_destroy(gau_Manager* in_mgr)
   ga_stream_manager_destroy(in_mgr->streamMgr);
   ga_mixer_destroy(in_mgr->mixer);
   gcX_ops->freeFunc(in_mgr->mixBuffer);
+  ga_device_close(in_mgr->device);
+  gcX_ops->freeFunc(in_mgr);
 }
 
 /* File-Based Data Source */
@@ -278,7 +283,7 @@ ga_DataSource* gau_data_source_create_file_arc(const char* in_filename, gc_int32
   ret->context.offset = in_offset;
   ret->context.size = in_size;
   ret->context.f = fopen(in_filename, "rb");
-  if(ret->context.f)
+  if(ret->context.f && in_size >= 0)
   {
     ret->context.fileMutex = gc_mutex_create();
     fseek(ret->context.f, in_offset, SEEK_SET);
@@ -526,6 +531,48 @@ typedef struct gau_SampleSourceOgg {
   gau_SampleSourceOggContext context;
 } gau_SampleSourceOgg;
 
+FILE* gauX_openWavFile(const char* in_fn, size_t* out_dataSizeOff)
+{
+  FILE* f = fopen(in_fn, "wb");
+  gc_int32 size = 0;
+  gc_uint16 val16 = 0;
+  gc_uint32 val32 = 0;
+  fwrite("RIFF", 1, 4, f);
+  fwrite(&size, 4, 1, f); /* file size */
+  fwrite("WAVE", 1, 4, f);
+  fwrite("fmt ", 1, 4, f);
+  size = 16;
+  fwrite(&size, 4, 1, f); /* format chunk size */
+  val16 = 0x0001;
+  fwrite(&val16, 2, 1, f);
+  val16 = 2;
+  fwrite(&val16, 2, 1, f);
+  val32 = 44100;
+  fwrite(&val32, 4, 1, f);
+  val32 = 4 * 44100;
+  fwrite(&val32, 4, 1, f);
+  val16 = 2;
+  fwrite(&val16, 2, 1, f);
+  val16 = 16;
+  fwrite(&val16, 2, 1, f);
+  fwrite("data", 1, 4, f);
+  *out_dataSizeOff = ftell(f);
+  size = 0;
+  fwrite(&size, 4, 1, f); /* data size */
+  return f;
+}
+void gauX_closeWavFile(FILE* in_f, size_t in_dataSizeOff)
+{
+  size_t totalSize = ftell(in_f);
+  size_t size = totalSize - 8;
+  fseek(in_f, 4, SEEK_SET);
+  fwrite(&size, 4, 1, in_f);
+  fseek(in_f, in_dataSizeOff, SEEK_SET);
+  size = size - (in_dataSizeOff + 4);
+  fwrite(&size, 4, 1, in_f);
+  fclose(in_f);
+}
+
 gc_int32 gauX_sample_source_ogg_read(void* in_context, void* in_dst, gc_int32 in_numSamples,
                                      tOnSeekFunc in_onSeekFunc, void* in_seekContext)
 {
@@ -534,6 +581,7 @@ gc_int32 gauX_sample_source_ogg_read(void* in_context, void* in_dst, gc_int32 in
   gc_int32 samplesRead;
   gc_int32 channels = ctx->oggInfo->channels;
   gc_int32 totalSamples = 0;
+  size_t dataSizeOff = 0;
   do{
     gc_int32 bitStream;
     gc_float32** samples;
@@ -553,7 +601,14 @@ gc_int32 gauX_sample_source_ogg_read(void* in_context, void* in_dst, gc_int32 in
       for(i = 0; i < samplesRead; ++i)
       {
         for(channel = 0; channel < channels; ++channel, ++dst)
-          *dst = (gc_int16)(samples[channel][i] * 32767.0f);
+        {
+          gc_float32 sample = samples[channel][i] * 32768.0f;
+          gc_int32 int32Sample = (gc_int32)sample;
+          gc_int16 int16Sample;
+          int32Sample = int32Sample > 32767 ? 32767 : int32Sample < -32768 ? -32768 : int32Sample;
+          int16Sample = (gc_int16)int32Sample;
+          *dst = int16Sample;
+        }
       }
     }
   } while (samplesRead > 0 && samplesLeft);
@@ -968,7 +1023,7 @@ ga_Sound* gau_helper_sound_file(const char* in_filename, const char* in_format)
 }
 ga_Handle* gau_helper_sound(ga_Mixer* in_mixer, ga_Sound* in_sound,
                             ga_FinishCallback in_callback, void* in_context,
-                            gau_SampleSourceLoop** out_loopSrc, gc_int32 in_loopStart, gc_int32 in_loopEnd)
+                            gau_SampleSourceLoop** out_loopSrc)
 {
   ga_Handle* ret = 0;
   ga_SampleSource* sampleSrc = sampleSrc = gau_sample_source_create_sound(in_sound);
@@ -978,7 +1033,7 @@ ga_Handle* gau_helper_sound(ga_Mixer* in_mixer, ga_Sound* in_sound,
     if(out_loopSrc)
     {
       gau_SampleSourceLoop* loopSampleSrc = gau_sample_source_create_loop(sampleSrc);
-      gau_sample_source_loop_set(loopSampleSrc, in_loopEnd, in_loopStart);
+      gau_sample_source_loop_set(loopSampleSrc, -1, 0);
       ga_sample_source_release(sampleSrc);
       *out_loopSrc = loopSampleSrc;
       sampleSrc2 = (ga_SampleSource*)loopSampleSrc;
@@ -995,7 +1050,7 @@ ga_Handle* gau_helper_sound(ga_Mixer* in_mixer, ga_Sound* in_sound,
 }
 ga_Handle* gau_helper_stream_data(ga_Mixer* in_mixer, ga_StreamManager* in_streamMgr, const char* in_format,
                                   ga_DataSource* in_dataSrc, ga_FinishCallback in_callback, void* in_context,
-                                  gau_SampleSourceLoop** out_loopSrc, gc_int32 in_loopStart, gc_int32 in_loopEnd)
+                                  gau_SampleSourceLoop** out_loopSrc)
 {
   ga_Handle* ret = 0;
   ga_DataSource* dataSrc = in_dataSrc;
@@ -1012,7 +1067,7 @@ ga_Handle* gau_helper_stream_data(ga_Mixer* in_mixer, ga_StreamManager* in_strea
       if(out_loopSrc)
       {
         gau_SampleSourceLoop* loopSampleSrc = gau_sample_source_create_loop(sampleSrc);
-        gau_sample_source_loop_set(loopSampleSrc, in_loopEnd, in_loopStart);
+        gau_sample_source_loop_set(loopSampleSrc, -1, 0);
         ga_sample_source_release(sampleSrc);
         *out_loopSrc = loopSampleSrc;
         sampleSrc2 = (ga_SampleSource*)loopSampleSrc;
@@ -1038,7 +1093,7 @@ ga_Handle* gau_helper_stream_data(ga_Mixer* in_mixer, ga_StreamManager* in_strea
 ga_Handle* gau_helper_stream_file(ga_Mixer* in_mixer, ga_StreamManager* in_streamMgr,
                                   const char* in_filename, const char* in_format,
                                   ga_FinishCallback in_callback, void* in_context,
-                                  gau_SampleSourceLoop** out_loopSrc, gc_int32 in_loopStart, gc_int32 in_loopEnd)
+                                  gau_SampleSourceLoop** out_loopSrc)
 {
   ga_Handle* ret = 0;
   ga_DataSource* dataSrc = gau_data_source_create_file(in_filename);
@@ -1056,7 +1111,7 @@ ga_Handle* gau_helper_stream_file(ga_Mixer* in_mixer, ga_StreamManager* in_strea
       if(out_loopSrc)
       {
         gau_SampleSourceLoop* loopSampleSrc = gau_sample_source_create_loop(sampleSrc);
-        gau_sample_source_loop_set(loopSampleSrc, in_loopEnd, in_loopStart);
+        gau_sample_source_loop_set(loopSampleSrc, -1, 0);
         ga_sample_source_release(sampleSrc);
         *out_loopSrc = loopSampleSrc;
         sampleSrc2 = (ga_SampleSource*)loopSampleSrc;

@@ -13,7 +13,7 @@ extern "C"
 */
 #define GA_VERSION_MAJOR 0
 #define GA_VERSION_MINOR 2
-#define GA_VERSION_REV 3
+#define GA_VERSION_REV 4
 
 gc_int32 ga_version_check(gc_int32 in_major, gc_int32 in_minor, gc_int32 in_rev);
 
@@ -39,9 +39,10 @@ gc_int32 ga_format_toSamples(ga_Format* in_format, gc_float32 in_seconds);
 /*
   Gorilla Audio Device
 */
-#define GA_DEVICE_TYPE_ANY -1
+#define GA_DEVICE_TYPE_DEFAULT -1
 #define GA_DEVICE_TYPE_UNKNOWN 0
 #define GA_DEVICE_TYPE_OPENAL 1
+#define GA_DEVICE_TYPE_DIRECTSOUND 2
 
 #define GA_DEVICE_HEADER gc_int32 devType;
 
@@ -49,7 +50,9 @@ typedef struct ga_Device {
   GA_DEVICE_HEADER
 } ga_Device;
 
-ga_Device* ga_device_open(gc_int32 in_type, gc_int32 in_numBuffers);
+ga_Device* ga_device_open(gc_int32 in_type,
+                          gc_int32 in_numBuffers,
+                          gc_int32 in_numSamples);
 gc_int32 ga_device_check(ga_Device* in_device);
 gc_result ga_device_queue(ga_Device* in_device,
                          ga_Format* in_format,
@@ -185,7 +188,6 @@ struct ga_Handle {
   gc_float32 pan;
   gc_Link dispatchLink;
   gc_Link mixLink;
-  gc_Link streamLink;
   gc_Mutex* handleMutex;
   ga_SampleSource* sampleSrc;
   volatile gc_int32 finished;

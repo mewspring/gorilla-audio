@@ -16,8 +16,6 @@ if(LINUX)
   SET(PLATFORM_NAME "linux")
 endif()
 
-set(LINK_AGAINST_OPENAL "1")
-
 if(NOT CMAKE_BUILD_TYPE)
   message(STATUS "No build type selected (defaulting to Release)")
   set(CMAKE_BUILD_TYPE "Release")
@@ -53,15 +51,49 @@ if(MSVC)
   set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} /Zi /Gm")
 endif()
 
-if(LINK_AGAINST_OPENAL)
-  set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -DLINK_AGAINST_OPENAL")
-  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -DLINK_AGAINST_OPENAL")
+if(MSVC)
+  set(ENABLE_DIRECTSOUND "0" CACHE STRING "Enable DirectSound device")
+  set(ENABLE_OPENAL "1" CACHE STRING "Enable OpenAL device")
+else()
+  set(ENABLE_OPENAL "1" CACHE STRING "Enable OpenAL device")
+endif()
+
+
+if(ENABLE_OPENAL)
+  set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -DENABLE_OPENAL")
+  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -DENABLE_OPENAL")
   # NOTE: Linux/Mac OpenAL support not yet implemented!
   if(MSVC)
     include_directories(../ext/OpenAL/include)
   else()
     find_package(OpenAL)
     include_directories(${OPENAL_INCLUDE_DIR})
+  endif()
+endif()
+
+if(ENABLE_DIRECTSOUND)
+  set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -DENABLE_DIRECTSOUND")
+  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -DENABLE_DIRECTSOUND")
+  set(DIRECTXSDK_PATH "${PROJECT_BINARY_DIR}/../../DirectXSdk" CACHE FILEPATH "DirectX SDK install path")
+  if(NOT EXISTS ${DIRECTXSDK_PATH})
+    message(FATAL ERROR " Could not locate DIRECTXSDK_PATH - please confirm this value is correct")
+  else()
+    find_path(DIRECTX_INCLUDE_DIR dsound.h
+      HINTS
+      ${DIRECTXSDK_PATH}
+      PATH_SUFFIXES Include
+      PATHS
+      ${DIRECTXSDK_PATH}
+    )
+    find_library(DIRECTX_DSOUND_LIBRARY
+      NAMES dsound
+      HINTS
+      ${DIRECTXSDK_PATH}
+      PATH_SUFFIXES Lib/x86
+      PATHS
+      ${DIRECTXSDK_PATH}
+    )
+    include_directories(${DIRECTX_INCLUDE_DIR})
   endif()
 endif()
 
@@ -75,14 +107,12 @@ set(GORILLA_INCLUDE
   ${INCLUDE_DIR}/gorilla/ga.h
   ${INCLUDE_DIR}/gorilla/gau.h
   ${INCLUDE_DIR}/gorilla/ga_stream.h
-  ${INCLUDE_DIR}/gorilla/ga_openal.h
   )
   
 set(GORILLA_SRC
   ${SRC_DIR}/ga.c
   ${SRC_DIR}/gau.c
   ${SRC_DIR}/ga_stream.c
-  ${SRC_DIR}/ga_openal.c
   )
 
 set(GORILLA_COMMON_INCLUDE
@@ -138,6 +168,16 @@ set(OGGVORBIS_SRC
   ${LIBVORBISDIR}/lib/window.c
   )
 
+if(ENABLE_OPENAL)
+  list(APPEND GORILLA_INCLUDE ${INCLUDE_DIR}/gorilla/ga_openal.h)
+  list(APPEND GORILLA_SRC ${SRC_DIR}/ga_openal.c)
+endif()
+
+if(ENABLE_DIRECTSOUND)
+  list(APPEND GORILLA_INCLUDE ${INCLUDE_DIR}/gorilla/ga_directsound.h)
+  list(APPEND GORILLA_SRC ${SRC_DIR}/ga_directsound.c)
+endif()
+
 source_group("include" FILES ${GORILLA_INCLUDE})
 source_group("src" FILES ${GORILLA_SRC})
 source_group("include\\common" FILES ${GORILLA_COMMON_INCLUDE})
@@ -154,11 +194,15 @@ add_library(gorilla STATIC
   ${OGGVORBIS_SRC}
   )
 
-if(LINK_AGAINST_OPENAL)
+if(ENABLE_OPENAL)
   # NOTE: Linux/Mac OpenAL support not yet implemented!
   if(MSVC)
     target_link_libraries(gorilla ${CMAKE_CURRENT_SOURCE_DIR}/../ext/OpenAL/libs/Win32/OpenAL32.lib)
   else()
     target_link_libraries(gorilla ${OPENAL_LIBRARY})
   endif()
+endif()
+
+if(ENABLE_DIRECTSOUND)
+  target_link_libraries(gorilla ${DIRECTX_DSOUND_LIBRARY})
 endif()

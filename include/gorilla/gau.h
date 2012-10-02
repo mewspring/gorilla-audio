@@ -32,8 +32,9 @@ typedef struct gau_Manager {
   gc_int32 killThreads;
 } gau_Manager;
 
-gau_Manager* gau_manager_create(ga_Device* in_device,
+gau_Manager* gau_manager_create(gc_int32 in_devType,
                                 gc_int32 in_threadPolicy,
+                                gc_int32 in_numBuffers,
                                 gc_int32 in_bufferSamples);
 void gau_manager_update(gau_Manager* in_mgr);
 ga_Mixer* gau_manager_mixer(gau_Manager* in_mgr);
@@ -58,14 +59,14 @@ void gau_sample_source_loop_clear(gau_SampleSourceLoop* in_sampleSrc);
 ga_Sound* gau_helper_sound_file(const char* in_filename, const char* in_format);
 ga_Handle* gau_helper_sound(ga_Mixer* in_mixer, ga_Sound* in_sound,
                             ga_FinishCallback in_callback, void* in_context,
-                            gau_SampleSourceLoop** out_loopSrc, gc_int32 in_loopStart, gc_int32 in_loopEnd);
+                            gau_SampleSourceLoop** out_loopSrc);
 ga_Handle* gau_helper_stream_data(ga_Mixer* in_mixer, ga_StreamManager* in_streamMgr, const char* in_format,
                                   ga_DataSource* in_dataSrc, ga_FinishCallback in_callback, void* in_context,
-                                  gau_SampleSourceLoop** out_loopSrc, gc_int32 in_loopStart, gc_int32 in_loopEnd);
+                                  gau_SampleSourceLoop** out_loopSrc);
 ga_Handle* gau_helper_stream_file(ga_Mixer* in_mixer, ga_StreamManager* in_streamMgr,
                                   const char* in_filename, const char* in_format,
                                   ga_FinishCallback in_callback, void* in_context,
-                                  gau_SampleSourceLoop** out_loopSrc, gc_int32 in_loopStart, gc_int32 in_loopEnd);
+                                  gau_SampleSourceLoop** out_loopSrc);
 
 #ifdef __cplusplus
 }

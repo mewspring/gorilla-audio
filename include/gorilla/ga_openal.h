@@ -1,8 +1,6 @@
 #ifndef _GORILLA_GA_OPENAL_H
 #define _GORILLA_GA_OPENAL_H
 
-#ifdef LINK_AGAINST_OPENAL
-
 #ifdef __cplusplus
 extern "C"
 {
@@ -20,18 +18,17 @@ typedef struct ga_DeviceImpl_OpenAl
   gc_int32 numBuffers;
 } ga_DeviceImpl_OpenAl;
 
-ga_DeviceImpl_OpenAl* gaX_device_open_openAl(gc_int32 in_numBuffers);
+ga_DeviceImpl_OpenAl* gaX_device_open_openAl(gc_int32 in_numBuffers,
+                                             gc_int32 in_numSamples);
 gc_int32 gaX_device_check_openAl(ga_DeviceImpl_OpenAl* in_device);
 gc_result gaX_device_queue_openAl(ga_DeviceImpl_OpenAl* in_device,
-                                 ga_Format* in_format,
-                                 gc_int32 in_numSamples,
-                                 void* in_buffer);
-gc_result gaX_device_close_openAl(ga_DeviceImpl_OpenAl* in_dev);
+                                  ga_Format* in_format,
+                                  gc_int32 in_numSamples,
+                                  void* in_buffer);
+gc_result gaX_device_close_openAl(ga_DeviceImpl_OpenAl* in_device);
 
 #ifdef __cplusplus
 }
 #endif /* __cplusplus */
-
-#endif /* LINK_AGAINST_OPENAL */
 
 #endif /* _GORILLA_GA_OPENAL_H */

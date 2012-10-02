@@ -2,6 +2,7 @@
 
 #include <memory.h>
 #include <stdlib.h>
+#include <stdio.h>
 #include <math.h>
 
 int main(int argc, char** argv)
@@ -17,8 +18,9 @@ int main(int argc, char** argv)
   gc_float32 pan = 1.0f;
   gc_float32 t = 0.0f;
 
+  /* Initialize library + manager */
   gc_initialize(0);
-  dev = ga_device_open(GA_DEVICE_TYPE_OPENAL, 2);
+  dev = ga_device_open(GA_DEVICE_TYPE_DEFAULT, 2, 2048);
   if(!dev)
     return 1;
 
@@ -28,8 +30,11 @@ int main(int argc, char** argv)
   fmt.sampleRate = 44100;
   numSamples = 2048;
   sampleSize = ga_format_sampleSize(&fmt);
+
+  /* Allocate buffer */
   buf = (gc_int16*)malloc(numSamples * sampleSize);
 
+  /* Infinite mix loop */
   while(1)
   {
     numToQueue = ga_device_check(dev);
@@ -49,9 +54,12 @@ int main(int argc, char** argv)
       ga_device_queue(dev, &fmt, numSamples, (char*)buf);
     }
   }
+
+  /* Clean up device + manager */
   ga_device_close(dev);
   gc_shutdown();
 
+  /* Free buffer */
   free(buf);
 
   return 0;

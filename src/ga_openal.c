@@ -1,5 +1,3 @@
-#ifdef LINK_AGAINST_OPENAL
-
 #include "gorilla/ga.h"
 
 #include "gorilla/ga_openal.h"
@@ -32,7 +30,7 @@ static gc_int32 AUDIO_ERROR = 0;
   if((AUDIO_ERROR = alGetError()) != AL_NO_ERROR) \
     printf("%s\n", gaX_openAlErrorToString(AUDIO_ERROR));
 
-ga_DeviceImpl_OpenAl* gaX_device_open_openAl(gc_int32 in_numBuffers)
+ga_DeviceImpl_OpenAl* gaX_device_open_openAl(gc_int32 in_numBuffers, gc_int32 in_numSamples)
 {
   ga_DeviceImpl_OpenAl* ret = gcX_ops->allocFunc(sizeof(ga_DeviceImpl_OpenAl));
   ALCboolean ctxRet;
@@ -83,15 +81,15 @@ cleanup:
   gcX_ops->freeFunc(ret);
   return 0;
 }
-gc_result gaX_device_close_openAl(ga_DeviceImpl_OpenAl* in_dev)
+gc_result gaX_device_close_openAl(ga_DeviceImpl_OpenAl* in_device)
 {
-  alDeleteSources(1, &in_dev->hwSource);
-  alDeleteBuffers(in_dev->numBuffers, in_dev->hwBuffers);
-  alcDestroyContext(in_dev->context);
-  alcCloseDevice(in_dev->dev);
-  in_dev->devType = GA_DEVICE_TYPE_UNKNOWN;
-  gcX_ops->freeFunc(in_dev->hwBuffers);
-  gcX_ops->freeFunc(in_dev);
+  alDeleteSources(1, &in_device->hwSource);
+  alDeleteBuffers(in_device->numBuffers, in_device->hwBuffers);
+  alcDestroyContext(in_device->context);
+  alcCloseDevice(in_device->dev);
+  in_device->devType = GA_DEVICE_TYPE_UNKNOWN;
+  gcX_ops->freeFunc(in_device->hwBuffers);
+  gcX_ops->freeFunc(in_device);
   return GC_SUCCESS;
 }
 gc_int32 gaX_device_check_openAl(ga_DeviceImpl_OpenAl* in_device)
@@ -146,5 +144,3 @@ gc_result gaX_device_queue_openAl(ga_DeviceImpl_OpenAl* in_device,
   CHECK_AL_ERROR;
   return GC_SUCCESS;
 }
-
-#endif /* LINK_AGAINST_OPENAL */
