@@ -55,6 +55,7 @@ typedef struct gau_SampleSourceLoop gau_SampleSourceLoop;
 gau_SampleSourceLoop* gau_sample_source_create_loop(ga_SampleSource* in_sampleSrc);
 void gau_sample_source_loop_set(gau_SampleSourceLoop* in_sampleSrc, gc_int32 in_triggerSample, gc_int32 in_targetSample);
 void gau_sample_source_loop_clear(gau_SampleSourceLoop* in_sampleSrc);
+gc_int32 gau_sample_source_loop_count(gau_SampleSourceLoop* in_sampleSrc);
 
 /* Helper functions */
 ga_Sound* gau_helper_sound_file(const char* in_filename, const char* in_format);

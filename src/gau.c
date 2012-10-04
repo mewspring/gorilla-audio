@@ -800,6 +800,7 @@ typedef struct gau_SampleSourceLoopContext {
   gc_int32 targetSample;
   gc_Mutex* loopMutex;
   gc_int32 sampleSize;
+  volatile gc_int32 loopCount;
 } gau_SampleSourceLoopContext;
 
 struct gau_SampleSourceLoop {
@@ -841,6 +842,7 @@ gc_int32 gauX_sample_source_loop_read(void* in_context, void* in_dst, gc_int32 i
     if(doSeek && toRead == numRead)
     {
       ga_sample_source_seek(ss, targetSample);
+      ++ctx->loopCount;
       if(in_onSeekFunc)
         in_onSeekFunc(totalRead, targetSample - triggerSample, in_seekContext);
     }
@@ -880,15 +882,17 @@ void gau_sample_source_loop_set(gau_SampleSourceLoop* in_sampleSrc, gc_int32 in_
   gc_mutex_lock(ctx->loopMutex);
   ctx->targetSample = in_targetSample;
   ctx->triggerSample = in_triggerSample;
+  ctx->loopCount = 0;
   gc_mutex_unlock(ctx->loopMutex);
+}
+gc_int32 gau_sample_source_loop_count(gau_SampleSourceLoop* in_sampleSrc)
+{
+  gau_SampleSourceLoopContext* ctx = &in_sampleSrc->context;
+  return ctx->loopCount;
 }
 void gau_sample_source_loop_clear(gau_SampleSourceLoop* in_sampleSrc)
 {
-  gau_SampleSourceLoopContext* ctx = &in_sampleSrc->context;
-  gc_mutex_lock(ctx->loopMutex);
-  ctx->targetSample = -1;
-  ctx->triggerSample = -1;
-  gc_mutex_unlock(ctx->loopMutex);
+  gau_sample_source_loop_set(in_sampleSrc, -1, -1);
 }
 gau_SampleSourceLoop* gau_sample_source_create_loop(ga_SampleSource* in_sampleSrc)
 {
@@ -901,6 +905,7 @@ gau_SampleSourceLoop* gau_sample_source_create_loop(ga_SampleSource* in_sampleSr
   sampleSize = ga_format_sampleSize(&ret->sampleSrc.format);
   ctx->triggerSample = -1;
   ctx->targetSample = -1;
+  ctx->loopCount = 0;
   ctx->loopMutex = gc_mutex_create();
   ctx->innerSrc = in_sampleSrc;
   ctx->sampleSize = sampleSize;
