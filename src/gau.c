@@ -23,7 +23,7 @@ static gc_int32 gauX_mixThreadFunc(void* in_context)
     while(numToQueue--)
     {
       ga_mixer_mix(m, ctx->mixBuffer);
-      ga_device_queue(ctx->device, &ctx->format, m->numSamples, ctx->mixBuffer);
+      ga_device_queue(ctx->device, ctx->mixBuffer);
     }
     gc_thread_sleep(5);
   }
@@ -52,14 +52,15 @@ gau_Manager* gau_manager_create(gc_int32 in_devType,
   assert(in_bufferSamples > 128);
   assert(in_numBuffers >= 2);
 
-  ret->device = ga_device_open(in_devType, in_numBuffers, in_bufferSamples);
-  assert(ret->device);
-
-  /* Initialize mixer */
+  /* Open device */
   memset(&ret->format, 0, sizeof(ga_Format));
   ret->format.bitsPerSample = 16;
   ret->format.numChannels = 2;
   ret->format.sampleRate = 44100;
+  ret->device = ga_device_open(in_devType, in_numBuffers, in_bufferSamples, &ret->format);
+  assert(ret->device);
+
+  /* Initialize mixer */
   ret->mixer = ga_mixer_create(&ret->format, in_bufferSamples);
   ret->streamMgr = ga_stream_manager_create();
   ret->sampleSize = ga_format_sampleSize(&ret->format);
@@ -95,7 +96,7 @@ void gau_manager_update(gau_Manager* in_mgr)
     while(numToQueue--)
     {
       ga_mixer_mix(mixer, buf);
-      ga_device_queue(dev, fmt, mixer->numSamples, buf);
+      ga_device_queue(dev, buf);
     }
     ga_stream_manager_stream(in_mgr->streamMgr);
   }

@@ -45,7 +45,7 @@ gc_int32 ga_format_toSamples(ga_Format* in_format, gc_float32 in_seconds);
 #define GA_DEVICE_TYPE_DIRECTSOUND 2
 #define GA_DEVICE_TYPE_XAUDIO2 3
 
-#define GA_DEVICE_HEADER gc_int32 devType;
+#define GA_DEVICE_HEADER gc_int32 devType; gc_int32 numBuffers; gc_int32 numSamples; ga_Format format;
 
 typedef struct ga_Device {
   GA_DEVICE_HEADER
@@ -53,12 +53,11 @@ typedef struct ga_Device {
 
 ga_Device* ga_device_open(gc_int32 in_type,
                           gc_int32 in_numBuffers,
-                          gc_int32 in_numSamples);
+                          gc_int32 in_numSamples,
+                          ga_Format* in_format);
 gc_int32 ga_device_check(ga_Device* in_device);
 gc_result ga_device_queue(ga_Device* in_device,
-                         ga_Format* in_format,
-                         gc_int32 in_numSamples,
-                         void* in_buffer);
+                          void* in_buffer);
 gc_result ga_device_close(ga_Device* in_device);
 
 /*

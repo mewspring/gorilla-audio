@@ -45,7 +45,10 @@ gc_int32 ga_format_toSamples(ga_Format* in_format, gc_float32 in_seconds)
 }
 
 /* Device Functions */
-ga_Device* ga_device_open(int in_type, gc_int32 in_numBuffers, gc_int32 in_numSamples)
+ga_Device* ga_device_open(gc_int32 in_type,
+                          gc_int32 in_numBuffers,
+                          gc_int32 in_numSamples,
+                          ga_Format* in_format)
 {
   while(in_type == GA_DEVICE_TYPE_DEFAULT)
   {
@@ -66,7 +69,7 @@ ga_Device* ga_device_open(int in_type, gc_int32 in_numBuffers, gc_int32 in_numSa
   if(in_type == GA_DEVICE_TYPE_OPENAL)
   {
 #ifdef ENABLE_OPENAL
-    return (ga_Device*)gaX_device_open_openAl(in_numBuffers, in_numSamples);
+    return (ga_Device*)gaX_device_open_openAl(in_numBuffers, in_numSamples, in_format);
 #else
     return 0;
 #endif /* ENABLE_OPENAL */
@@ -74,7 +77,7 @@ ga_Device* ga_device_open(int in_type, gc_int32 in_numBuffers, gc_int32 in_numSa
   else if(in_type == GA_DEVICE_TYPE_DIRECTSOUND)
   {
 #ifdef ENABLE_DIRECTSOUND
-    return (ga_Device*)gaX_device_open_directSound(in_numBuffers, in_numSamples);
+    return (ga_Device*)gaX_device_open_directSound(in_numBuffers, in_numSamples, in_format);
 #else
     return 0;
 #endif /* ENABLE_DIRECTSOUND */
@@ -82,7 +85,7 @@ ga_Device* ga_device_open(int in_type, gc_int32 in_numBuffers, gc_int32 in_numSa
   else if(in_type == GA_DEVICE_TYPE_XAUDIO2)
   {
 #ifdef ENABLE_XAUDIO2
-    return (ga_Device*)gaX_device_open_xaudio2(in_numBuffers, in_numSamples);
+    return (ga_Device*)gaX_device_open_xaudio2(in_numBuffers, in_numSamples, in_format);
 #else
     return 0;
 #endif /* ENABLE_XAUDIO2 */
@@ -156,15 +159,13 @@ gc_int32 ga_device_check(ga_Device* in_device)
   return GC_ERROR_GENERIC;
 }
 gc_result ga_device_queue(ga_Device* in_device,
-                         ga_Format* in_format,
-                         gc_int32 in_numSamples,
-                         void* in_buffer)
+                          void* in_buffer)
 {
   if(in_device->devType == GA_DEVICE_TYPE_OPENAL)
   {
 #ifdef ENABLE_OPENAL
     ga_DeviceImpl_OpenAl* dev = (ga_DeviceImpl_OpenAl*)in_device;
-    return gaX_device_queue_openAl(dev, in_format, in_numSamples, in_buffer);
+    return gaX_device_queue_openAl(dev, in_buffer);
 #else
     return GC_ERROR_GENERIC;
 #endif /* ENABLE_OPENAL */
@@ -173,7 +174,7 @@ gc_result ga_device_queue(ga_Device* in_device,
   {
 #ifdef ENABLE_DIRECTSOUND
     ga_DeviceImpl_DirectSound* dev = (ga_DeviceImpl_DirectSound*)in_device;
-    return gaX_device_queue_directSound(dev, in_format, in_numSamples, in_buffer);
+    return gaX_device_queue_directSound(dev, in_buffer);
 #else
     return GC_ERROR_GENERIC;
 #endif /* ENABLE_DIRECTSOUND */
@@ -182,7 +183,7 @@ gc_result ga_device_queue(ga_Device* in_device,
   {
 #ifdef ENABLE_XAUDIO2
     ga_DeviceImpl_XAudio2* dev = (ga_DeviceImpl_XAudio2*)in_device;
-    return gaX_device_queue_xaudio2(dev, in_format, in_numSamples, in_buffer);
+    return gaX_device_queue_xaudio2(dev, in_buffer);
 #else
     return GC_ERROR_GENERIC;
 #endif /* ENABLE_XAUDIO2 */

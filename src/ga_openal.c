@@ -7,6 +7,7 @@
 
 #include <stdlib.h>
 #include <stdio.h>
+#include <memory.h>
 
 const char* gaX_openAlErrorToString(ALuint error)
 {
@@ -30,14 +31,18 @@ static gc_int32 AUDIO_ERROR = 0;
   if((AUDIO_ERROR = alGetError()) != AL_NO_ERROR) \
     printf("%s\n", gaX_openAlErrorToString(AUDIO_ERROR));
 
-ga_DeviceImpl_OpenAl* gaX_device_open_openAl(gc_int32 in_numBuffers, gc_int32 in_numSamples)
+ga_DeviceImpl_OpenAl* gaX_device_open_openAl(gc_int32 in_numBuffers,
+                                             gc_int32 in_numSamples,
+                                             ga_Format* in_format)
 {
   ga_DeviceImpl_OpenAl* ret = gcX_ops->allocFunc(sizeof(ga_DeviceImpl_OpenAl));
   ALCboolean ctxRet;
 
   ret->devType = GA_DEVICE_TYPE_OPENAL;
-  ret->nextBuffer = 0;
   ret->numBuffers = in_numBuffers;
+  ret->numSamples = in_numSamples;
+  memcpy(&ret->format, in_format, sizeof(ga_Format));
+  ret->nextBuffer = 0;
   ret->emptyBuffers = ret->numBuffers;
 #ifdef _WIN32
   ret->dev = alcOpenDevice("DirectSound");
@@ -108,23 +113,21 @@ gc_int32 gaX_device_check_openAl(ga_DeviceImpl_OpenAl* in_device)
   return d->emptyBuffers;
 }
 gc_result gaX_device_queue_openAl(ga_DeviceImpl_OpenAl* in_device,
-                                 ga_Format* in_format,
-                                 gc_int32 in_numSamples,
-                                 void* in_buffer)
+                                  void* in_buffer)
 {
   gc_int32 formatOal;
   gc_int32 sampleSize;
   ALint state;
-  gc_int32 bps = in_format->bitsPerSample;
+  gc_int32 bps = in_device->format.bitsPerSample;
   ga_DeviceImpl_OpenAl* d = in_device;
 
-  if(in_format->numChannels == 1)
+  if(in_device->format.numChannels == 1)
     formatOal = (gc_int32)(bps == 16 ? AL_FORMAT_MONO16 : AL_FORMAT_MONO8);
   else
     formatOal = (gc_int32)(bps == 16 ? AL_FORMAT_STEREO16 : AL_FORMAT_STEREO8);
-  sampleSize = ga_format_sampleSize(in_format);
+  sampleSize = ga_format_sampleSize(&in_device->format);
   alBufferData(d->hwBuffers[d->nextBuffer], formatOal, in_buffer,
-    (ALsizei)in_numSamples * sampleSize, in_format->sampleRate);
+               (ALsizei)in_device->numSamples * sampleSize, in_device->format.sampleRate);
   CHECK_AL_ERROR;
   if(AUDIO_ERROR != AL_NO_ERROR)
     return GC_ERROR_GENERIC;
