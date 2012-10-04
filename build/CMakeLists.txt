@@ -53,6 +53,7 @@ endif()
 
 if(MSVC)
   set(ENABLE_DIRECTSOUND "0" CACHE STRING "Enable DirectSound device")
+  set(ENABLE_XAUDIO2 "1" CACHE STRING "Enable XAudio2 device")
   set(ENABLE_OPENAL "1" CACHE STRING "Enable OpenAL device")
 else()
   set(ENABLE_OPENAL "1" CACHE STRING "Enable OpenAL device")
@@ -71,9 +72,17 @@ if(ENABLE_OPENAL)
   endif()
 endif()
 
+if(ENABLE_XAUDIO2)
+  set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -DENABLE_XAUDIO2")
+  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -DENABLE_XAUDIO2")
+endif()
+
 if(ENABLE_DIRECTSOUND)
   set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -DENABLE_DIRECTSOUND")
   set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -DENABLE_DIRECTSOUND")
+endif()
+
+if(ENABLE_DIRECTSOUND OR ENABLE_XAUDIO2)
   set(DIRECTXSDK_PATH "${PROJECT_BINARY_DIR}/../../DirectXSdk" CACHE FILEPATH "DirectX SDK install path")
   if(NOT EXISTS ${DIRECTXSDK_PATH})
     message(FATAL ERROR " Could not locate DIRECTXSDK_PATH - please confirm this value is correct")
@@ -87,6 +96,14 @@ if(ENABLE_DIRECTSOUND)
     )
     find_library(DIRECTX_DSOUND_LIBRARY
       NAMES dsound
+      HINTS
+      ${DIRECTXSDK_PATH}
+      PATH_SUFFIXES Lib/x86
+      PATHS
+      ${DIRECTXSDK_PATH}
+    )
+    find_library(DIRECTX_XAUDIO2_LIBRARY
+      NAMES XAPOBase
       HINTS
       ${DIRECTXSDK_PATH}
       PATH_SUFFIXES Lib/x86
@@ -178,6 +195,11 @@ if(ENABLE_DIRECTSOUND)
   list(APPEND GORILLA_SRC ${SRC_DIR}/ga_directsound.c)
 endif()
 
+if(ENABLE_XAUDIO2)
+  list(APPEND GORILLA_INCLUDE ${INCLUDE_DIR}/gorilla/ga_xaudio2.h)
+  list(APPEND GORILLA_SRC ${SRC_DIR}/ga_xaudio2.c)
+endif()
+
 source_group("include" FILES ${GORILLA_INCLUDE})
 source_group("src" FILES ${GORILLA_SRC})
 source_group("include\\common" FILES ${GORILLA_COMMON_INCLUDE})
@@ -205,4 +227,8 @@ endif()
 
 if(ENABLE_DIRECTSOUND)
   target_link_libraries(gorilla ${DIRECTX_DSOUND_LIBRARY})
+endif()
+
+if(ENABLE_XAUDIO2)
+  target_link_libraries(gorilla ${DIRECTX_XAUDIO2_LIBRARY})
 endif()

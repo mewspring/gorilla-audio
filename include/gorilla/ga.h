@@ -13,7 +13,7 @@ extern "C"
 */
 #define GA_VERSION_MAJOR 0
 #define GA_VERSION_MINOR 2
-#define GA_VERSION_REV 5
+#define GA_VERSION_REV 6
 
 gc_int32 ga_version_check(gc_int32 in_major, gc_int32 in_minor, gc_int32 in_rev);
 
@@ -43,6 +43,7 @@ gc_int32 ga_format_toSamples(ga_Format* in_format, gc_float32 in_seconds);
 #define GA_DEVICE_TYPE_UNKNOWN 0
 #define GA_DEVICE_TYPE_OPENAL 1
 #define GA_DEVICE_TYPE_DIRECTSOUND 2
+#define GA_DEVICE_TYPE_XAUDIO2 3
 
 #define GA_DEVICE_HEADER gc_int32 devType;
 
@@ -142,20 +143,37 @@ void ga_sample_source_acquire(ga_SampleSource* in_sampleSrc);
 void ga_sample_source_release(ga_SampleSource* in_sampleSrc);
 
 /*
+  Gorilla Memory
+*/
+typedef struct ga_Memory {
+  void* data;
+  gc_uint32 size;
+  gc_int32 refCount;
+  gc_Mutex* refMutex;
+} ga_Memory;
+
+ga_Memory* ga_memory_create(void* in_data, gc_int32 in_size);
+ga_Memory* ga_memory_create_data_source(ga_DataSource* in_dataSource);
+gc_int32 ga_memory_size(ga_Memory* in_mem);
+void* ga_memory_data(ga_Memory* in_mem);
+void ga_memory_acquire(ga_Memory* in_mem);
+void ga_memory_release(ga_Memory* in_mem);
+
+/*
   Gorilla Sound
 */
 typedef struct ga_Sound {
-  void* data;
-  gc_uint32 size;
+  ga_Memory* memory;
   ga_Format format;
   gc_int32 numSamples;
   gc_int32 refCount;
   gc_Mutex* refMutex;
 } ga_Sound;
 
-ga_Sound* ga_sound_create(ga_SampleSource* in_sampleSrc);
-ga_Sound* ga_sound_createRaw(void* in_data, gc_int32 in_size,
-                             ga_Format* in_format);
+ga_Sound* ga_sound_create(ga_Memory* in_memory, ga_Format* in_format);
+ga_Sound* ga_sound_create_sample_source(ga_SampleSource* in_sampleSrc);
+void* ga_sound_data(ga_Sound* in_sound);
+gc_int32 ga_sound_size(ga_Sound* in_sound);
 gc_int32 ga_sound_numSamples(ga_Sound* in_sound);
 void ga_sound_format(ga_Sound* in_sound, ga_Format* out_format);
 void ga_sound_acquire(ga_Sound* in_sound);

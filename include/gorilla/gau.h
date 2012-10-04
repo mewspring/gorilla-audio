@@ -45,6 +45,7 @@ void gau_manager_destroy(gau_Manager* in_mgr);
 /* Concrete Source Implementations */
 ga_DataSource* gau_data_source_create_file(const char* in_filename);
 ga_DataSource* gau_data_source_create_file_arc(const char* in_filename, gc_int32 in_offset, gc_int32 in_size);
+ga_DataSource* gau_data_source_create_memory(ga_Memory* in_memory);
 ga_SampleSource* gau_sample_source_create_wav(ga_DataSource* in_dataSrc);
 ga_SampleSource* gau_sample_source_create_ogg(ga_DataSource* in_dataSrc);
 ga_SampleSource* gau_sample_source_create_stream(ga_StreamManager* in_mgr, ga_SampleSource* in_sampleSrc, gc_int32 in_bufferSamples);
@@ -59,9 +60,13 @@ gc_int32 gau_sample_source_loop_count(gau_SampleSourceLoop* in_sampleSrc);
 
 /* Helper functions */
 ga_Sound* gau_helper_sound_file(const char* in_filename, const char* in_format);
+ga_Memory* gau_helper_memory_file(const char* in_filename);
 ga_Handle* gau_helper_sound(ga_Mixer* in_mixer, ga_Sound* in_sound,
                             ga_FinishCallback in_callback, void* in_context,
                             gau_SampleSourceLoop** out_loopSrc);
+ga_Handle* gau_helper_memory(ga_Mixer* in_mixer, ga_Memory* in_memory, const char* in_format,
+                             ga_FinishCallback in_callback, void* in_context,
+                             gau_SampleSourceLoop** out_loopSrc);
 ga_Handle* gau_helper_stream_data(ga_Mixer* in_mixer, ga_StreamManager* in_streamMgr, const char* in_format,
                                   ga_DataSource* in_dataSrc, ga_FinishCallback in_callback, void* in_context,
                                   gau_SampleSourceLoop** out_loopSrc);

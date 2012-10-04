@@ -300,6 +300,86 @@ ga_DataSource* gau_data_source_create_file_arc(const char* in_filename, gc_int32
   return (ga_DataSource*)ret;
 }
 
+
+/* Memory-Based Data Source */
+typedef struct gau_DataSourceMemoryContext {
+  ga_Memory* memory;
+  gc_int32 pos;
+  gc_Mutex* memMutex;
+} gau_DataSourceMemoryContext;
+
+typedef struct gau_DataSourceMemory {
+  ga_DataSource dataSrc;
+  gau_DataSourceMemoryContext context;
+} gau_DataSourceMemory;
+
+gc_int32 gauX_data_source_memory_read(void* in_context, void* in_dst, gc_int32 in_size, gc_int32 in_count)
+{
+  gau_DataSourceMemoryContext* ctx = (gau_DataSourceMemoryContext*)in_context;
+  gc_int32 ret = 0;
+  gc_int32 dataSize = ga_memory_size(ctx->memory);
+  gc_int32 toRead = in_size * in_count;
+  gc_int32 remaining;
+
+  gc_mutex_lock(ctx->memMutex);
+  remaining = dataSize - ctx->pos;
+  toRead = toRead < remaining ? toRead : remaining;
+  toRead = toRead - (toRead % in_size);
+  if(toRead)
+  {
+    memcpy(in_dst, (char*)ga_memory_data(ctx->memory) + ctx->pos, toRead);
+    ctx->pos += toRead;
+    ret = toRead / in_size;
+  }
+  gc_mutex_unlock(ctx->memMutex);
+  return ret;
+}
+gc_int32 gauX_data_source_memory_seek(void* in_context, gc_int32 in_offset, gc_int32 in_origin)
+{
+  gau_DataSourceMemoryContext* ctx = (gau_DataSourceMemoryContext*)in_context;
+  gc_int32 dataSize = ga_memory_size(ctx->memory);
+  gc_mutex_lock(ctx->memMutex);
+  switch(in_origin)
+  {
+  case GA_SEEK_ORIGIN_SET: ctx->pos = in_offset; break;
+  case GA_SEEK_ORIGIN_CUR: ctx->pos += in_offset; break;
+  case GA_SEEK_ORIGIN_END: ctx->pos = dataSize - in_offset; break;
+  }
+  ctx->pos = ctx->pos < 0 ? 0 : ctx->pos > dataSize ? dataSize : ctx->pos;
+  gc_mutex_unlock(ctx->memMutex);
+  return 0;
+}
+gc_int32 gauX_data_source_memory_tell(void* in_context)
+{
+  gau_DataSourceMemoryContext* ctx = (gau_DataSourceMemoryContext*)in_context;
+  gc_int32 ret;
+  gc_mutex_lock(ctx->memMutex);
+  ret = ctx->pos;
+  gc_mutex_unlock(ctx->memMutex);
+  return ret;
+}
+void gauX_data_source_memory_close(void* in_context)
+{
+  gau_DataSourceMemoryContext* ctx = (gau_DataSourceMemoryContext*)in_context;
+  ga_memory_release(ctx->memory);
+  gc_mutex_destroy(ctx->memMutex);
+}
+ga_DataSource* gau_data_source_create_memory(ga_Memory* in_memory)
+{
+  gau_DataSourceMemory* ret = gcX_ops->allocFunc(sizeof(gau_DataSourceMemory));
+  ga_data_source_init(&ret->dataSrc);
+  ret->dataSrc.flags = GA_FLAG_SEEKABLE | GA_FLAG_THREADSAFE;
+  ret->dataSrc.readFunc = &gauX_data_source_memory_read;
+  ret->dataSrc.seekFunc = &gauX_data_source_memory_seek;
+  ret->dataSrc.tellFunc = &gauX_data_source_memory_tell;
+  ret->dataSrc.closeFunc = &gauX_data_source_memory_close;
+  ga_memory_acquire(in_memory);
+  ret->context.memory = in_memory;
+  ret->context.pos = 0;
+  ret->context.memMutex = gc_mutex_create();
+  return (ga_DataSource*)ret;
+}
+
 /* WAV Sample Source */
 typedef struct ga_WavData
 {
@@ -950,7 +1030,7 @@ gc_int32 gauX_sample_source_sound_read(void* in_context, void* in_dst, gc_int32 
   numRead = in_numSamples > avail ? avail : in_numSamples;
   ctx->pos += numRead;
   gc_mutex_unlock(ctx->posMutex);
-  src = (char*)snd->data + pos * ctx->sampleSize;
+  src = (char*)ga_sound_data(snd) + pos * ctx->sampleSize;
   memcpy(in_dst, src, numRead * ctx->sampleSize);
   return numRead;
 }
@@ -1024,8 +1104,51 @@ ga_Sound* gau_helper_sound_file(const char* in_filename, const char* in_format)
     ga_data_source_release(dataSrc);
     if(sampleSrc)
     {
-      ret = ga_sound_create(sampleSrc);
+      ret = ga_sound_create_sample_source(sampleSrc);
       ga_sample_source_release(sampleSrc);
+    }
+  }
+  return ret;
+}
+ga_Memory* gau_helper_memory_file(const char* in_filename)
+{
+  ga_Memory* ret;
+  ga_DataSource* fileDataSrc = gau_data_source_create_file(in_filename);
+  ret = ga_memory_create_data_source(fileDataSrc);
+  ga_data_source_release(fileDataSrc);
+  return ret;
+}
+ga_Handle* gau_helper_memory(ga_Mixer* in_mixer, ga_Memory* in_memory, const char* in_format,
+                             ga_FinishCallback in_callback, void* in_context,
+                             gau_SampleSourceLoop** out_loopSrc)
+{
+  ga_Handle* ret = 0;
+  ga_DataSource* dataSrc = gau_data_source_create_memory(in_memory);
+  if(dataSrc)
+  {
+    ga_SampleSource* sampleSrc = 0;
+    if(stricmp(in_format, "ogg") == 0)
+      sampleSrc = gau_sample_source_create_ogg(dataSrc);
+    else if(stricmp(in_format, "wav") == 0)
+      sampleSrc = gau_sample_source_create_wav(dataSrc);
+    if(sampleSrc)
+    {
+      ga_SampleSource* sampleSrc2 = sampleSrc;
+      if(out_loopSrc)
+      {
+        gau_SampleSourceLoop* loopSampleSrc = gau_sample_source_create_loop(sampleSrc);
+        gau_sample_source_loop_set(loopSampleSrc, -1, 0);
+        ga_sample_source_release(sampleSrc);
+        *out_loopSrc = loopSampleSrc;
+        sampleSrc2 = (ga_SampleSource*)loopSampleSrc;
+      }
+      if(sampleSrc2)
+      {
+        ret = ga_handle_create(in_mixer, sampleSrc2);
+        if(sampleSrc == sampleSrc2)
+          ga_sample_source_release(sampleSrc2);
+        ga_handle_setCallback(ret, in_callback, in_context);
+      }
     }
   }
   return ret;

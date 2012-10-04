@@ -8,6 +8,10 @@
 #include "gorilla/ga_directsound.h"
 #endif /* ENABLE_DIRECTSOUND */
 
+#ifdef ENABLE_XAUDIO2
+#include "gorilla/ga_xaudio2.h"
+#endif /* ENABLE_XAUDIO2 */
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -45,6 +49,10 @@ ga_Device* ga_device_open(int in_type, gc_int32 in_numBuffers, gc_int32 in_numSa
 {
   while(in_type == GA_DEVICE_TYPE_DEFAULT)
   {
+#ifdef ENABLE_XAUDIO2
+    in_type = GA_DEVICE_TYPE_XAUDIO2; break;
+#endif /* ENABLE_XAUDIO2 */
+
 #ifdef ENABLE_DIRECTSOUND
     in_type = GA_DEVICE_TYPE_DIRECTSOUND; break;
 #endif /* ENABLE_DIRECTSOUND */
@@ -71,6 +79,14 @@ ga_Device* ga_device_open(int in_type, gc_int32 in_numBuffers, gc_int32 in_numSa
     return 0;
 #endif /* ENABLE_DIRECTSOUND */
   }
+  else if(in_type == GA_DEVICE_TYPE_XAUDIO2)
+  {
+#ifdef ENABLE_XAUDIO2
+    return (ga_Device*)gaX_device_open_xaudio2(in_numBuffers, in_numSamples);
+#else
+    return 0;
+#endif /* ENABLE_XAUDIO2 */
+  }
   else
     return 0;
 }
@@ -96,6 +112,16 @@ gc_result ga_device_close(ga_Device* in_device)
     return 0;
 #endif /* ENABLE_DIRECTSOUND */
   }
+  else if(in_device->devType == GA_DEVICE_TYPE_XAUDIO2)
+  {
+#ifdef ENABLE_XAUDIO2
+    ga_DeviceImpl_XAudio2* dev = (ga_DeviceImpl_XAudio2*)in_device;
+    gaX_device_close_xaudio2(dev);
+    return GC_SUCCESS;
+#else
+    return 0;
+#endif /* ENABLE_XAUDIO2 */
+  }
   return GC_ERROR_GENERIC;
 }
 gc_int32 ga_device_check(ga_Device* in_device)
@@ -117,6 +143,15 @@ gc_int32 ga_device_check(ga_Device* in_device)
 #else
     return GC_ERROR_GENERIC;
 #endif /* ENABLE_DIRECTSOUND */
+  }
+  else if(in_device->devType == GA_DEVICE_TYPE_XAUDIO2)
+  {
+#ifdef ENABLE_XAUDIO2
+    ga_DeviceImpl_XAudio2* dev = (ga_DeviceImpl_XAudio2*)in_device;
+    return gaX_device_check_xaudio2(dev);
+#else
+    return GC_ERROR_GENERIC;
+#endif /* ENABLE_XAUDIO2 */
   }
   return GC_ERROR_GENERIC;
 }
@@ -142,6 +177,15 @@ gc_result ga_device_queue(ga_Device* in_device,
 #else
     return GC_ERROR_GENERIC;
 #endif /* ENABLE_DIRECTSOUND */
+  }
+  else if(in_device->devType == GA_DEVICE_TYPE_XAUDIO2)
+  {
+#ifdef ENABLE_XAUDIO2
+    ga_DeviceImpl_XAudio2* dev = (ga_DeviceImpl_XAudio2*)in_device;
+    return gaX_device_queue_xaudio2(dev, in_format, in_numSamples, in_buffer);
+#else
+    return GC_ERROR_GENERIC;
+#endif /* ENABLE_XAUDIO2 */
   }
   return GC_ERROR_GENERIC;
 }
@@ -295,8 +339,91 @@ gc_int32 ga_sample_source_ready(ga_SampleSource* in_sampleSrc, gc_int32 in_numSa
   return 1;
 }
 
+/* Memory Functions */
+static ga_Memory* gaX_memory_create(void* in_data, gc_int32 in_size, gc_int32 in_copy)
+{
+  ga_Memory* ret = gcX_ops->allocFunc(sizeof(ga_Memory));
+  ret->size = in_size;
+  if(in_copy)
+  {
+    ret->data = gcX_ops->allocFunc(in_size);
+    memcpy(ret->data, in_data, in_size);
+  }
+  else
+    ret->data = in_data;
+  ret->refMutex = gc_mutex_create();
+  ret->refCount = 1;
+  return (ga_Memory*)ret;
+}
+ga_Memory* ga_memory_create(void* in_data, gc_int32 in_size)
+{
+  return gaX_memory_create(in_data, in_size, 1);
+}
+ga_Memory* ga_memory_create_data_source(ga_DataSource* in_dataSource)
+{
+  ga_Memory* ret = 0;
+  gc_int32 BUFFER_BYTES = 4096;
+  char* data = 0;
+  gc_int32 totalBytes = 0;
+  gc_int32 numBytesRead = 0;
+  do
+  {
+    data = gcX_ops->reallocFunc(data, totalBytes + BUFFER_BYTES);
+    numBytesRead = ga_data_source_read(in_dataSource, data + totalBytes, 1, BUFFER_BYTES);
+    if(numBytesRead < BUFFER_BYTES)
+      data = gcX_ops->reallocFunc(data, totalBytes + numBytesRead);
+    totalBytes += numBytesRead;
+  } while(numBytesRead > 0);
+  ret = gaX_memory_create(data, totalBytes, 0);
+  if(!ret)
+    gcX_ops->freeFunc(data);
+  return ret;
+}
+gc_int32 ga_memory_size(ga_Memory* in_mem)
+{
+  return in_mem->size;
+}
+void* ga_memory_data(ga_Memory* in_mem)
+{
+  return in_mem->data;
+}
+static void gaX_memory_destroy(ga_Memory* in_mem)
+{
+  gcX_ops->freeFunc(in_mem->data);
+  gcX_ops->freeFunc(in_mem);
+}
+void ga_memory_acquire(ga_Memory* in_mem)
+{
+  gc_mutex_lock(in_mem->refMutex);
+  ++in_mem->refCount;
+  gc_mutex_unlock(in_mem->refMutex);
+}
+void ga_memory_release(ga_Memory* in_mem)
+{
+  gc_int32 refCount;
+  assert(in_mem->refCount > 0);
+  gc_mutex_lock(in_mem->refMutex);
+  --in_mem->refCount;
+  refCount = in_mem->refCount;
+  gc_mutex_unlock(in_mem->refMutex);
+  if(refCount == 0)
+    gaX_memory_destroy(in_mem);
+}
+
+
 /* Sound Functions */
-ga_Sound* ga_sound_create(ga_SampleSource* in_sampleSrc)
+ga_Sound* ga_sound_create(ga_Memory* in_memory, ga_Format* in_format)
+{
+  ga_Sound* ret = gcX_ops->allocFunc(sizeof(ga_Sound));
+  ret->numSamples = ga_memory_size(in_memory) / ga_format_sampleSize(in_format);
+  memcpy(&ret->format, in_format, sizeof(ga_Format));
+  ga_memory_acquire(in_memory);
+  ret->memory = in_memory;
+  ret->refMutex = gc_mutex_create();
+  ret->refCount = 1;
+  return (ga_Sound*)ret;
+}
+ga_Sound* ga_sound_create_sample_source(ga_SampleSource* in_sampleSrc)
 {
   ga_Sound* ret = 0;
   ga_Format format;
@@ -311,11 +438,18 @@ ga_Sound* ga_sound_create(ga_SampleSource* in_sampleSrc)
   {
     /* Known total samples*/
     char* data;
+    ga_Memory* memory;
     dataSize = sampleSize * totalSamples;
     data = gcX_ops->allocFunc(dataSize);
     ga_sample_source_read(sampleSrc, data, totalSamples, 0, 0);
-    ret = ga_sound_createRaw(data, dataSize, &format);
-    if(!ret)
+    memory = gaX_memory_create(data, dataSize, 0);
+    if(memory)
+    {
+      ret = ga_sound_create(memory, &format);
+      if(!ret)
+        ga_memory_release(memory);
+    }
+    else
       gcX_ops->freeFunc(data);
   }
   else
@@ -323,6 +457,7 @@ ga_Sound* ga_sound_create(ga_SampleSource* in_sampleSrc)
     /* Unknown total samples */
     gc_int32 BUFFER_SAMPLES = format.sampleRate * 2;
     char* data = 0;
+    ga_Memory* memory;
     totalSamples = 0;
     while(!ga_sample_source_end(sampleSrc))
     {
@@ -335,28 +470,29 @@ ga_Sound* ga_sound_create(ga_SampleSource* in_sampleSrc)
       }
       totalSamples += numSamplesRead;
     }
-    ret = ga_sound_createRaw(data, totalSamples * sampleSize, &format);
-    if(!ret)
+    memory = gaX_memory_create(data, totalSamples * sampleSize, 0);
+    if(memory)
+    {
+      ret = ga_sound_create(memory, &format);
+      if(!ret)
+        ga_memory_release(memory);
+    }
+    else
       gcX_ops->freeFunc(data);
   }
   return ret;
 }
-ga_Sound* ga_sound_createRaw(void* in_data, gc_int32 in_size,
-                             ga_Format* in_format)
+void* ga_sound_data(ga_Sound* in_sound)
 {
-  ga_Sound* ret = gcX_ops->allocFunc(sizeof(ga_Sound));
-  ret->size = in_size;
-  ret->numSamples = in_size / ga_format_sampleSize(in_format);
-  ret->data = gcX_ops->allocFunc(in_size);
-  memcpy(ret->data, in_data, in_size);
-  memcpy(&ret->format, in_format, sizeof(ga_Format));
-  ret->refMutex = gc_mutex_create();
-  ret->refCount = 1;
-  return (ga_Sound*)ret;
+  return ga_memory_data(in_sound->memory);
+}
+gc_int32 ga_sound_size(ga_Sound* in_sound)
+{
+  return ga_memory_size(in_sound->memory);
 }
 gc_int32 ga_sound_numSamples(ga_Sound* in_sound)
 {
-  return in_sound->size / ga_format_sampleSize(&in_sound->format);
+  return ga_memory_size(in_sound->memory) / ga_format_sampleSize(&in_sound->format);
 }
 void ga_sound_format(ga_Sound* in_sound, ga_Format* out_format)
 {
@@ -364,7 +500,7 @@ void ga_sound_format(ga_Sound* in_sound, ga_Format* out_format)
 }
 static void gaX_sound_destroy(ga_Sound* in_sound)
 {
-  gcX_ops->freeFunc(in_sound->data);
+  ga_memory_release(in_sound->memory);
   gcX_ops->freeFunc(in_sound);
 }
 void ga_sound_acquire(ga_Sound* in_sound)
