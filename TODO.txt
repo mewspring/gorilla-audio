@@ -12,21 +12,24 @@ COMPATIBILITY:
   - OpenMAX AL device (Multi)
 
 IMPROVEMENTS:
+- Improve looping system
+  - Make it queryable and/or specify a number of future loops to perform
+  - Expose loop interface to generic SampleSource data structure
+- Specifiable/queryable device format (partly done)
 - Handle-group support (synchronized start/seek/pause/stop)
-- Opaque handles (ints)
 - Mono mixer
 - 8-bit mixer
 - Arbitrary mixer rate
+- Opaque handles (ints)
 - Push handles writeable from main thread into an internal buffer
 - Support for enumerating devices
-- Specifiable/queryable device format
 
 USABILITY:
-- Better error codes and reporting
 - Doxygen comments for the API
 - Glossary of terms
 - Tutorial on how to get started (akin to the example code)
 - Documentation on how to extend the systems
+- Better error codes and reporting
 
 DSP FILTERS:
 - Create framework for apply DSP filters

@@ -1,0 +1,37 @@
+CHANGE LOG
+---
+
+0.2.7
+- Implemented XAudio2 device support for Windows.
+
+0.2.6
+- Implemented ga_Memory data structure for refcounting shared memory.
+- Stubbed in XAudio2 support.
+- Added gau_sample_source_loop_count() function to count how many times something
+  has looped. This is a stop-gap feature, to be deprecated after planned looping 
+  improvements.
+
+0.2.5
+- You can now query the gau_Manager for its device.
+
+0.2.4
+- Moved device initialization into gau_Manager.
+- Removed loopStart and loopEnd parameters from gau_helper_*.
+- Stubbed in DirectSound support in CMake project files.
+- Removed vestigial streamLink handle property.
+- Cleaned up the examples.
+
+0.2.3
+- WAV loader rewrite: WAV loader is cleaner, clearer, and far more robust at 
+  handling WAV files with extension chunks.
+
+0.2.2
+- First properly-versioned release.
+- Fixed deadlock in archive data source.
+- Replaced an accidental naked malloc with internal allocFunc.
+- Fixed a bug in looping logic.
+- Wrote a new helper function, gau_helper_stream_data().
+
+< 0.2.2
+- Prior versioning information is 'pre-historic'.
+- Please browse the source code repository for a full changelog.
