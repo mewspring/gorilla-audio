@@ -19,3 +19,4 @@ bin/win32/Release/gorilla.lib
 *.suo
 gorilla.lib
 gorillaD.lib
+docs/output/*
