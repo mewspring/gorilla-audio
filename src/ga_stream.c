@@ -1,6 +1,5 @@
 #include "gorilla/ga.h"
 #include "gorilla/ga_internal.h"
-#include "gorilla/ga_stream.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -76,7 +75,7 @@ typedef struct gaX_StreamLink {
   gc_int32 refCount;
   gc_Mutex* produceMutex;
   gc_Mutex* refMutex;
-  ga_Stream* stream;
+  ga_BufferedStream* stream;
 } gaX_StreamLink;
 
 gaX_StreamLink* gaX_stream_link_create()
@@ -140,7 +139,7 @@ ga_StreamManager* ga_stream_manager_create()
   gc_list_head(&ret->streamList);
   return ret;
 }
-gaX_StreamLink* gaX_stream_manager_add(ga_StreamManager* in_mgr, ga_Stream* in_stream)
+gaX_StreamLink* gaX_stream_manager_add(ga_StreamManager* in_mgr, ga_BufferedStream* in_stream)
 {
   gaX_StreamLink* streamLink = gaX_stream_link_create(in_stream);
   gaX_stream_link_acquire(streamLink); /* The new client adds its own refcount */
@@ -187,21 +186,21 @@ void ga_stream_manager_destroy(ga_StreamManager* in_mgr)
 }
 
 /* Stream */
-ga_Stream* ga_stream_create(ga_StreamManager* in_mgr, ga_SampleSource* in_sampleSource, gc_int32 in_bufferSize)
+ga_BufferedStream* ga_stream_create(ga_StreamManager* in_mgr, ga_SampleSource* in_sampleSrc, gc_int32 in_bufferSize)
 {
-  ga_Stream* ret = gcX_ops->allocFunc(sizeof(ga_Stream));
+  ga_BufferedStream* ret = gcX_ops->allocFunc(sizeof(ga_BufferedStream));
   ret->refCount = 1;
   ret->refMutex = gc_mutex_create();
-  ga_sample_source_acquire(in_sampleSource);
-  ga_sample_source_format(in_sampleSource, &ret->format);
+  ga_sample_source_acquire(in_sampleSrc);
+  ga_sample_source_format(in_sampleSrc, &ret->format);
   gc_list_head(&ret->tellJumps);
-  ret->innerSrc = in_sampleSource;
+  ret->innerSrc = in_sampleSrc;
   ret->nextSample = 0;
   ret->seek = 0;
   ret->tell = 0;
   ret->end = 0;
   ret->bufferSize = in_bufferSize;
-  ret->flags = ga_sample_source_flags(in_sampleSource);
+  ret->flags = ga_sample_source_flags(in_sampleSrc);
   assert(ret->flags & GA_FLAG_THREADSAFE);
   ret->produceMutex = gc_mutex_create();
   ret->seekMutex = gc_mutex_create();
@@ -212,7 +211,7 @@ ga_Stream* ga_stream_create(ga_StreamManager* in_mgr, ga_SampleSource* in_sample
 }
 void gaX_stream_onSeek(gc_int32 in_sample, gc_int32 in_delta, void* in_seekContext)
 {
-  ga_Stream* s = (ga_Stream*)in_seekContext;
+  ga_BufferedStream* s = (ga_BufferedStream*)in_seekContext;
   gc_int32 samplesAvail, sampleSize;
   ga_Format fmt;
   ga_sample_source_format(s->innerSrc, &fmt);
@@ -224,7 +223,7 @@ void gaX_stream_onSeek(gc_int32 in_sample, gc_int32 in_delta, void* in_seekConte
   gc_mutex_unlock(s->seekMutex);
   gc_mutex_unlock(s->readMutex);
 }
-gc_int32 gaX_read_samples_into_stream(ga_Stream* in_stream,
+gc_int32 gaX_read_samples_into_stream(ga_BufferedStream* in_stream,
                                       gc_CircBuffer* in_buffer,
                                       gc_int32 in_samples,
                                       ga_SampleSource* in_sampleSrc)
@@ -250,9 +249,9 @@ gc_int32 gaX_read_samples_into_stream(ga_Stream* in_stream,
   gc_buffer_produce(b, numWritten * sampleSize);
   return numWritten;
 }
-void ga_stream_produce(ga_Stream* in_stream)
+void ga_stream_produce(ga_BufferedStream* in_stream)
 {
-  ga_Stream* s = in_stream;
+  ga_BufferedStream* s = in_stream;
   gc_CircBuffer* b = s->buffer;
   gc_int32 sampleSize = ga_format_sampleSize(&s->format);
   gc_int32 bytesFree = gc_buffer_bytesFree(b);
@@ -291,9 +290,9 @@ void ga_stream_produce(ga_Stream* in_stream)
     }
   }
 }
-gc_int32 ga_stream_read(ga_Stream* in_stream, void* in_dst, gc_int32 in_numSamples)
+gc_int32 ga_stream_read(ga_BufferedStream* in_stream, void* in_dst, gc_int32 in_numSamples)
 {
-  ga_Stream* s = in_stream;
+  ga_BufferedStream* s = in_stream;
   gc_CircBuffer* b = s->buffer;
   gc_int32 delta;
 
@@ -335,30 +334,30 @@ gc_int32 ga_stream_read(ga_Stream* in_stream, void* in_dst, gc_int32 in_numSampl
   gc_mutex_unlock(s->readMutex);
   return samplesConsumed;
 }
-gc_int32 ga_stream_ready(ga_Stream* in_stream, gc_int32 in_numSamples)
+gc_int32 ga_stream_ready(ga_BufferedStream* in_stream, gc_int32 in_numSamples)
 {
-  ga_Stream* s = in_stream;
+  ga_BufferedStream* s = in_stream;
   gc_int32 avail = gc_buffer_bytesAvail(s->buffer);
   return s->end || avail >= in_numSamples * ga_format_sampleSize(&s->format) && avail > s->bufferSize / 2.0f;
 }
-gc_int32 ga_stream_end(ga_Stream* in_stream)
+gc_int32 ga_stream_end(ga_BufferedStream* in_stream)
 {
-  ga_Stream* s = in_stream;
+  ga_BufferedStream* s = in_stream;
   gc_CircBuffer* b = s->buffer;
   gc_int32 bytesAvail = gc_buffer_bytesAvail(b);
   return s->end && bytesAvail == 0;
 }
-gc_int32 ga_stream_seek(ga_Stream* in_stream, gc_int32 in_sampleOffset)
+gc_int32 ga_stream_seek(ga_BufferedStream* in_stream, gc_int32 in_sampleOffset)
 {
-  ga_Stream* s = in_stream;
+  ga_BufferedStream* s = in_stream;
   gc_mutex_lock(s->seekMutex);
   s->seek = in_sampleOffset;
   gc_mutex_unlock(s->seekMutex);
   return 0;
 }
-gc_int32 ga_stream_tell(ga_Stream* in_stream, gc_int32* out_totalSamples)
+gc_int32 ga_stream_tell(ga_BufferedStream* in_stream, gc_int32* out_totalSamples)
 {
-  ga_Stream* s = in_stream;
+  ga_BufferedStream* s = in_stream;
   gc_int32 ret = -1;
   ga_sample_source_tell(s->innerSrc, out_totalSamples);
   gc_mutex_lock(s->seekMutex);
@@ -366,14 +365,14 @@ gc_int32 ga_stream_tell(ga_Stream* in_stream, gc_int32* out_totalSamples)
   gc_mutex_unlock(s->seekMutex);
   return ret;
 }
-gc_int32 ga_stream_flags(ga_Stream* in_stream)
+gc_int32 ga_stream_flags(ga_BufferedStream* in_stream)
 {
-  ga_Stream* s = in_stream;
+  ga_BufferedStream* s = in_stream;
   return s->flags;
 }
-void gaX_stream_destroy(ga_Stream* in_stream)
+void gaX_stream_destroy(ga_BufferedStream* in_stream)
 {
-  ga_Stream* s = in_stream;
+  ga_BufferedStream* s = in_stream;
   gaX_stream_link_kill((gaX_StreamLink*)s->streamLink); /* This must be done first, so that the stream remains valid until it killed */
   gaX_stream_link_release((gaX_StreamLink*)s->streamLink);
   gc_mutex_destroy(s->produceMutex);
@@ -385,13 +384,13 @@ void gaX_stream_destroy(ga_Stream* in_stream)
   ga_sample_source_release(s->innerSrc);
   gcX_ops->freeFunc(s);
 }
-void ga_stream_acquire(ga_Stream* in_stream)
+void ga_stream_acquire(ga_BufferedStream* in_stream)
 {
   gc_mutex_lock(in_stream->refMutex);
   ++in_stream->refCount;
   gc_mutex_unlock(in_stream->refMutex);
 }
-void ga_stream_release(ga_Stream* in_stream)
+void ga_stream_release(ga_BufferedStream* in_stream)
 {
   gc_int32 refCount;
   assert(in_stream->refCount > 0);

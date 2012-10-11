@@ -70,6 +70,7 @@ extern "C"
  */
 gc_int32 ga_version_check(gc_int32 in_major, gc_int32 in_minor, gc_int32 in_rev);
 
+
 /************************/
 /*  Global Definitions  */
 /************************/
@@ -86,6 +87,7 @@ gc_int32 ga_version_check(gc_int32 in_major, gc_int32 in_minor, gc_int32 in_rev)
  */
 #define GA_FLAG_SEEKABLE 1 /**< Flag for sources that supports seeking. \ingroup sourceFlags */
 #define GA_FLAG_THREADSAFE 2 /**< Flag for sources with a thread-safe interface. \ingroup sourceFlags */
+
 
 /***********************/
 /*  Memory Management  */
@@ -110,6 +112,7 @@ gc_int32 ga_version_check(gc_int32 in_major, gc_int32 in_minor, gc_int32 in_rev)
                           object will be freed. A client must never use the object after 
                           releasing its reference. The object itself should never be copied.
                           Instead, a pointer to the object should be copied. \ingroup memManagement*/
+
 
 /************/
 /*  Format  */
@@ -161,6 +164,7 @@ gc_float32 ga_format_toSeconds(ga_Format* in_format, gc_int32 in_samples);
  *  \return Number of PCM samples it will take to play back for the given time
  */
 gc_int32 ga_format_toSamples(ga_Format* in_format, gc_float32 in_seconds);
+
 
 /************/
 /*  Device  */
@@ -240,6 +244,7 @@ gc_result ga_device_queue(ga_Device* in_device,
  */
 gc_result ga_device_close(ga_Device* in_device);
 
+
 /*****************/
 /*  Data Source  */
 /*****************/
@@ -313,7 +318,7 @@ gc_int32 ga_data_source_tell(ga_DataSource* in_dataSrc);
  */
 gc_int32 ga_data_source_flags(ga_DataSource* in_dataSrc);
 
-/** Acquire a reference for a data source.
+/** Acquires a reference for a data source.
  *
  *  Increments the data source's reference count by 1.
  *
@@ -332,6 +337,7 @@ void ga_data_source_acquire(ga_DataSource* in_dataSrc);
  *  \warning A client must never use a data source after releasing its reference.
  */
 void ga_data_source_release(ga_DataSource* in_dataSrc);
+
 
 /*******************/
 /*  Sample Source  */
@@ -368,12 +374,12 @@ typedef struct ga_SampleSource ga_SampleSource;
  */
 typedef void (*tOnSeekFunc)(gc_int32 in_sample, gc_int32 in_delta, void* in_seekContext);
 
-/** Reads samples from the samples source.
+/** Reads samples from a samples source.
  *
  *  \ingroup ga_SampleSource
  *  \param in_sampleSrc Sample source from which to read.
- *  \param in_dst Destination buffer into which samples should be read. Guaranteed to
- *                be at least (in_numSamples * sample-format-sample-size) bytes in size.
+ *  \param in_dst Destination buffer into which samples should be read. Must
+ *                be at least (in_numSamples * sample-size) bytes in size.
  *  \param in_numSamples Number of samples to read.
  *  \param in_onSeekFunc The on-seek callback function for this read operation.
  *  \param in_seekContext User-specified context for the on-seek function.
@@ -445,7 +451,7 @@ gc_int32 ga_sample_source_flags(ga_SampleSource* in_sampleSrc);
  */
 void ga_sample_source_format(ga_SampleSource* in_sampleSrc, ga_Format* out_format);
 
-/** Acquire a reference for a sample source.
+/** Acquires a reference for a sample source.
  *
  *  Increments the sample source's reference count by 1.
  *  
@@ -464,6 +470,7 @@ void ga_sample_source_acquire(ga_SampleSource* in_sampleSrc);
  *  \warning A client must never use a sample source after releasing its reference.
  */
 void ga_sample_source_release(ga_SampleSource* in_sampleSrc);
+
 
 /************/
 /*  Memory  */
@@ -534,7 +541,7 @@ gc_int32 ga_memory_size(ga_Memory* in_mem);
  */
 void* ga_memory_data(ga_Memory* in_mem);
 
-/** Acquire a reference for a memory object.
+/** Acquires a reference for a memory object.
  *
  *  Increments the memory object's reference count by 1.
  *
@@ -553,6 +560,7 @@ void ga_memory_acquire(ga_Memory* in_mem);
  *  \warning A client must never use a memory object after releasing its reference.
  */
 void ga_memory_release(ga_Memory* in_mem);
+
 
 /***********/
 /*  Sound  */
@@ -639,7 +647,7 @@ gc_int32 ga_sound_numSamples(ga_Sound* in_sound);
  */
 void ga_sound_format(ga_Sound* in_sound, ga_Format* out_format);
 
-/** Acquire a reference for a sound object.
+/** Acquires a reference for a sound object.
  *
  *  Increments the sound object's reference count by 1.
  *
@@ -659,6 +667,7 @@ void ga_sound_acquire(ga_Sound* in_sound);
  *  \warning A client must never use a sound object after releasing its reference.
  */
 void ga_sound_release(ga_Sound* in_sound);
+
 
 /************/
 /*  Mixer  */
@@ -749,6 +758,7 @@ gc_result ga_mixer_dispatch(ga_Mixer* in_mixer);
  *  \warning The client must never use a mixer after calling ga_mixer_destroy().
  */
 gc_result ga_mixer_destroy(ga_Mixer* in_mixer);
+
 
 /************/
 /*  Handle  */
@@ -1018,6 +1028,181 @@ gc_int32 ga_handle_ready(ga_Handle* in_handle, gc_int32 in_numSamples);
  *  \todo Either return a copy of the format, or make it a const* return value.
  */
 void ga_handle_format(ga_Handle* in_handle, ga_Format* out_format);
+
+
+/*****************************/
+/*  Buffered-Stream Manager  */
+/*****************************/
+/** Buffered-stream manager data structure and related functions.
+ *
+ *  \defgroup ga_StreamManager Buffered Stream Manager
+ *  \ingroup external
+ */
+
+/** Buffered-stream manager data structure [\ref SINGLE_CLIENT].
+ *
+ *  Manages a list of buffered streams, filling them. This class can be used
+ *  on a background thread, to allow filling the streams without causing
+ *  real-time applications to stutter.
+ *
+ *  \ingroup ga_StreamManager
+ */
+typedef struct ga_StreamManager ga_StreamManager;
+
+/** Creates a buffered-stream manager.
+ *
+ *  \ingroup ga_StreamManager
+ *  \return Newly-created stream manager.
+ */
+ga_StreamManager* ga_stream_manager_create();
+
+/** Fills all buffers managed by a buffered-stream manager.
+ *
+ *  \ingroup ga_StreamManager
+ *  \param in_mgr The buffered-stream manager whose buffers are to be filled.
+ */
+void ga_stream_manager_buffer(ga_StreamManager* in_mgr);
+
+/** Destroys a buffered-stream manager.
+ *
+ *  \ingroup ga_StreamManager
+ *  \param in_mgr The buffered-stream manager to be destroyed.
+ *  \warning Never use a buffered-stream manager after it has been destroyed.
+ */
+void ga_stream_manager_destroy(ga_StreamManager* in_mgr);
+
+
+/*********************/
+/*  Buffered Stream  */
+/*********************/
+/** Buffered stream data structure and related functions.
+ *
+ *  \defgroup ga_BufferedStream Buffered Stream
+ *  \ingroup external
+ */
+
+/** Buffered stream data structure [\ref MULTI_CLIENT].
+ *
+ *  Buffered streams read samples from a sample source into a buffer. They 
+ *  support seeking, reading, and all other sample source functionality,
+ *  albeit through a different interface. This is done to decouple the
+ *  background-streaming logic from the audio-processing pipeline logic.
+ *
+ *  \ingroup ga_BufferedStream
+ */
+typedef struct ga_BufferedStream ga_BufferedStream;
+
+/** Creates a buffered stream.
+ *
+ *  \ingroup ga_BufferedStream
+ *  \param in_mgr Buffered-stream manager to manage the buffered stream
+ *                (non-optional).
+ *  \param in_sampleSrc Sample source to buffer samples from.
+ *  \param in_bufferSize Size of the internal data buffer (in bytes). Must be
+ *         a multiple of sample size.
+ *  \return Newly-created buffered stream.
+ *  \todo Change in_bufferSize to in_bufferSamples for a mre fault-resistant
+ *        interface.
+ */
+ga_BufferedStream* ga_stream_create(ga_StreamManager* in_mgr, ga_SampleSource* in_sampleSrc, gc_int32 in_bufferSize);
+
+/** Buffers samples from the sample source into the internal buffer (producer).
+ *
+ *  Can be called from a background thread.
+ *
+ *  \ingroup ga_BufferedStream
+ *  \param in_stream Stream to produce samples.
+ *  \warning This function should only ever be called by the buffered stream
+ *           manager.
+ */
+void ga_stream_produce(ga_BufferedStream* in_stream); /* Can be called from a secondary thread */
+
+/** Reads samples from a buffered stream.
+ *
+ *  \ingroup ga_BufferedStream
+ *  \param in_stream Buffered stream from which to read.
+ *  \param in_dst Destination buffer into which samples should be read. Must
+ *                be at least (in_numSamples * sample size) bytes in size.
+ *  \param in_numSamples Number of samples to read.
+ *  \return Total number of bytes read into the destination buffer.
+ */
+gc_int32 ga_stream_read(ga_BufferedStream* in_stream, void* in_dst, gc_int32 in_numSamples);
+
+/** Checks whether a buffered stream has reached the end of the stream.
+ *
+ *  \ingroup ga_BufferedStream
+ *  \param in_stream Buffered stream to check.
+ *  \return Whether the buffered stream has reached the end of the stream.
+ */
+gc_int32 ga_stream_end(ga_BufferedStream* in_stream);
+
+/** Checks whether a buffered stream has at least a given number of available
+ *  samples.
+ *
+ *  If the sample source has fewer than in_numSamples samples left before it
+ *  finishes, this function will returns GA_TRUE regardless of the number of
+ *  samples.
+ *
+ *  \ingroup ga_BufferedStream
+ *  \param in_stream Buffered stream to check.
+ *  \param in_numSamples The minimum number of samples required for the 
+ *                       buffered stream to be considered ready.
+ *  \return Whether the buffered stream has at least a given number of available
+ *          samples.
+ */
+gc_int32 ga_stream_ready(ga_BufferedStream* in_stream, gc_int32 in_numSamples);
+
+/** Seek to an offset (in samples) within a buffered stream.
+ *
+ *  \ingroup ga_BufferedStream
+ *  \param in_stream Buffered stream to seek within.
+ *  \param in_sampleOffset Offset (in samples) from the start of the contained
+ *                         sample source.
+ *  \return If seek succeeds, returns 0, otherwise returns -1 (invalid seek
+ *          request).
+ *  \warning Only buffered streams with GA_FLAG_SEEKABLE can have ga_stream_seek()
+ *           called on them.
+ */
+gc_int32 ga_stream_seek(ga_BufferedStream* in_stream, gc_int32 in_sampleOffset);
+
+/** Tells the current sample number of a buffered stream.
+ *
+ *  \ingroup ga_BufferedStream
+ *  \param in_stream Buffered stream to tell the current sample number of.
+ *  \param out_totalSamples If set, this value will be set to the total number of 
+ *                          samples in the contained sample source. Output parameter.
+ *  \return The current sample source sample number.
+ */
+gc_int32 ga_stream_tell(ga_BufferedStream* in_stream, gc_int32* out_totalSamples);
+
+/** Returns the bitfield of flags set for a buffered stream (see \ref globDefs).
+ *
+ *  \ingroup ga_BufferedStream
+ *  \param in_stream Buffered stream whose flags should be retrieved.
+ *  \return The bitfield of flags set for the buffered stream.
+ */
+gc_int32 ga_stream_flags(ga_BufferedStream* in_stream);
+
+/** Acquire a reference for a buffered stream.
+ *
+ *  Increments the buffered stream's reference count by 1.
+ *
+ *  \ingroup ga_BufferedStream
+ *  \param in_stream Buffered stream whose reference count should be incremented.
+ *  \todo Either return a copy of the format, or make it a const* return value.
+ */
+void ga_stream_acquire(ga_BufferedStream* in_stream);
+
+/** Releases a reference for a buffered stream.
+ *
+ *  Decrements the buffered stream's reference count by 1. When the last reference is
+ *  released, the buffered stream's resources will be deallocated.
+ *  
+ *  \ingroup ga_BufferedStream
+ *  \param in_stream Buffered stream whose reference count should be decremented.
+ *  \warning A client must never use a buffered stream after releasing its reference.
+ */
+void ga_stream_release(ga_BufferedStream* in_stream);
 
 #ifdef __cplusplus
 }

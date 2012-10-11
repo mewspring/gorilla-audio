@@ -11,7 +11,6 @@
 #include "gorilla/common/gc_common.h"
 #include "gorilla/ga.h"
 #include "gorilla/ga_internal.h"
-#include "gorilla/ga_stream.h"
 
 #ifdef __cplusplus
 extern "C"

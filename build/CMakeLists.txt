@@ -122,7 +122,7 @@ include_directories(${INCLUDE_DIR})
 set(GORILLA_INCLUDE
   ${INCLUDE_DIR}/gorilla/ga.h
   ${INCLUDE_DIR}/gorilla/gau.h
-  ${INCLUDE_DIR}/gorilla/ga_stream.h
+  ${INCLUDE_DIR}/gorilla/ga_internal.h
   )
   
 set(GORILLA_SRC

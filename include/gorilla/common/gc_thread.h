@@ -45,7 +45,7 @@ extern "C"
  */
 typedef gc_int32 (*gc_ThreadFunc)(void* in_context);
 
-/** Thread data structure.
+/** Thread data structure [\ref SINGLE_CLIENT].
  *
  *  \ingroup gc_Thread
  */
@@ -95,6 +95,7 @@ void gc_thread_sleep(gc_uint32 in_ms);
  *  \ingroup gc_Thread
  *  \warning This should usually only be called once the the thread has 
  *           successfully joined with another thread.
+ *  \warning Never use a thread after it has been destroyed.
  */
 void gc_thread_destroy(gc_Thread* in_thread);
 
@@ -107,7 +108,7 @@ void gc_thread_destroy(gc_Thread* in_thread);
  *  \defgroup gc_Mutex Mutex
  */
 
-/** Mutual exclusion lock (mutex) thread synchronization primitive data structure.
+/** Mutual exclusion lock (mutex) thread synchronization primitive data structure [\ref SINGLE_CLIENT].
  *
  *  \ingroup gc_Mutex
  */
@@ -141,6 +142,7 @@ void gc_mutex_unlock(gc_Mutex* in_mutex);
  *
  *  \ingroup gc_Mutex
  *  \warning Make sure the mutex is no longer in use before destroying it.
+ *  \warning Never use a mutex after it has been destroyed.
  */
 void gc_mutex_destroy(gc_Mutex* in_mutex);
 

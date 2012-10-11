@@ -213,6 +213,31 @@ struct ga_Mixer {
   gc_Mutex* mixMutex;
 };
 
+
+struct ga_StreamManager {
+  gc_Link streamList;
+  gc_Mutex* streamListMutex;
+};
+
+struct ga_BufferedStream {
+  gc_Link* streamLink;
+  ga_SampleSource* innerSrc;
+  gc_CircBuffer* buffer;
+  gc_Mutex* produceMutex;
+  gc_Mutex* seekMutex;
+  gc_Mutex* readMutex;
+  gc_Mutex* refMutex;
+  gc_int32 refCount;
+  gc_Link tellJumps;
+  ga_Format format;
+  gc_int32 seek;
+  gc_int32 tell;
+  gc_int32 nextSample;
+  gc_int32 end;
+  gc_int32 flags;
+  gc_int32 bufferSize;
+};
+
 #ifdef __cplusplus
 }
 #endif /* __cplusplus */

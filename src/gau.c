@@ -40,7 +40,7 @@ static gc_int32 gauX_streamThreadFunc(void* in_context)
   ga_StreamManager* mgr = ctx->streamMgr;
   while(!ctx->killThreads)
   {
-    ga_stream_manager_stream(mgr);
+    ga_stream_manager_buffer(mgr);
     gc_thread_sleep(50);
   }
   return 0;
@@ -103,7 +103,7 @@ void gau_manager_update(gau_Manager* in_mgr)
       ga_mixer_mix(mixer, buf);
       ga_device_queue(dev, buf);
     }
-    ga_stream_manager_stream(in_mgr->streamMgr);
+    ga_stream_manager_buffer(in_mgr->streamMgr);
   }
   ga_mixer_dispatch(in_mgr->mixer);
 }
@@ -805,7 +805,7 @@ ga_SampleSource* gau_sample_source_create_ogg(ga_DataSource* in_dataSrc)
 
 /* Stream Sample Source */
 typedef struct gau_SampleSourceStreamContext {
-  ga_Stream* stream;
+  ga_BufferedStream* stream;
 } gau_SampleSourceStreamContext;
 
 typedef struct gau_SampleSourceStream {
@@ -851,7 +851,7 @@ ga_SampleSource* gau_sample_source_create_stream(ga_StreamManager* in_mgr, ga_Sa
   gau_SampleSourceStream* ret = gcX_ops->allocFunc(sizeof(gau_SampleSourceStream));
   gau_SampleSourceStreamContext* ctx = &ret->context;
   gc_int32 sampleSize;
-  ga_Stream* stream;
+  ga_BufferedStream* stream;
   ga_sample_source_init(&ret->sampleSrc);
   ga_sample_source_format(in_sampleSrc, &ret->sampleSrc.format);
   sampleSize = ga_format_sampleSize(&ret->sampleSrc.format);
