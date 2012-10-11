@@ -45,9 +45,9 @@ extern "C"
  *  \warning Never instantiate a ga_Device directly, unless you are implementing a new concrete
  *           device implementation. Instead, you should use ga_device_open().
  */
-typedef struct SINGLE_CLIENT ga_Device {
+struct SINGLE_CLIENT ga_Device {
   GA_DEVICE_HEADER
-} ga_Device;
+};
 
 /*****************/
 /*  Data Source  */
@@ -108,7 +108,7 @@ typedef void (*tDataSourceFunc_Close)(void* in_context);
  *  \ingroup intDataSource
  *  \todo Design a clearer/better system for easily extending this data type.
  */
-typedef struct MULTI_CLIENT ga_DataSource {
+struct MULTI_CLIENT ga_DataSource {
   tDataSourceFunc_Read readFunc; /**< Internal read callback. */
   tDataSourceFunc_Seek seekFunc; /**< Internal seek callback (optional). */
   tDataSourceFunc_Tell tellFunc; /**< Internal tell callback (optional). */
@@ -116,7 +116,7 @@ typedef struct MULTI_CLIENT ga_DataSource {
   gc_int32 refCount; /**< Reference count. */
   gc_Mutex* refMutex; /**< Mutex to protect reference count manipulations. */
   gc_int32 flags; /**< Flags defining which functionality this data source supports (see [\ref globDefs]). */
-} ga_DataSource;
+};
 
 /** Initializes the reference count and other default values.
  *
@@ -138,7 +138,7 @@ typedef gc_int32 (*tSampleSourceFunc_Seek)(void* in_context, gc_int32 in_sampleO
 typedef gc_int32 (*tSampleSourceFunc_Tell)(void* in_context, gc_int32* out_totalSamples);
 typedef void (*tSampleSourceFunc_Close)(void* in_context);
 
-typedef struct ga_SampleSource {
+struct ga_SampleSource {
   tSampleSourceFunc_Read readFunc;
   tSampleSourceFunc_End endFunc;
   tSampleSourceFunc_Ready readyFunc;
@@ -149,30 +149,30 @@ typedef struct ga_SampleSource {
   gc_int32 refCount;
   gc_Mutex* refMutex;
   gc_int32 flags;
-} ga_SampleSource;
+};
 
 void ga_sample_source_init(ga_SampleSource* in_sampleSrc);
 
 /************/
 /*  Memory  */
 /************/
-typedef struct ga_Memory {
+struct ga_Memory {
   void* data;
   gc_uint32 size;
   gc_int32 refCount;
   gc_Mutex* refMutex;
-} ga_Memory;
+};
 
 /***********/
 /*  Sound  */
 /***********/
-typedef struct ga_Sound {
+struct ga_Sound {
   ga_Memory* memory;
   ga_Format format;
   gc_int32 numSamples;
   gc_int32 refCount;
   gc_Mutex* refMutex;
-} ga_Sound;
+};
 
 /************/
 /*  Handle  */
@@ -184,7 +184,7 @@ typedef struct ga_Sound {
 #define GA_HANDLE_STATE_FINISHED 4
 #define GA_HANDLE_STATE_DESTROYED 5
 
-typedef struct ga_Handle {
+struct ga_Handle {
   ga_Mixer* mixer;
   ga_FinishCallback callback;
   void* context;
@@ -197,12 +197,12 @@ typedef struct ga_Handle {
   gc_Mutex* handleMutex;
   ga_SampleSource* sampleSrc;
   volatile gc_int32 finished;
-} ga_Handle;
+};
 
 /************/
 /*  Mixer  */
 /************/
-typedef struct ga_Mixer {
+struct ga_Mixer {
   ga_Format format;
   ga_Format mixFormat;
   gc_int32 numSamples;
@@ -211,7 +211,7 @@ typedef struct ga_Mixer {
   gc_Mutex* dispatchMutex;
   gc_Link mixList;
   gc_Mutex* mixMutex;
-} ga_Mixer;
+};
 
 #ifdef __cplusplus
 }
