@@ -1,3 +1,10 @@
+/** Common Types.
+ *
+ *  Cross-platform primitive type definitions.
+ *
+ *  \file gc_types.h
+ */
+
 #ifndef _GORILLA_GC_TYPES_H
 #define _GORILLA_GC_TYPES_H
 

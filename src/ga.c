@@ -2,15 +2,15 @@
 #include "gorilla/ga_internal.h"
 
 #ifdef ENABLE_OPENAL
-#include "gorilla/ga_openal.h"
+#include "gorilla/devices/ga_openal.h"
 #endif /* ENABLE_OPENAL */
 
 #ifdef ENABLE_DIRECTSOUND
-#include "gorilla/ga_directsound.h"
+#include "gorilla/devices/ga_directsound.h"
 #endif /* ENABLE_DIRECTSOUND */
 
 #ifdef ENABLE_XAUDIO2
-#include "gorilla/ga_xaudio2.h"
+#include "gorilla/devices/ga_xaudio2.h"
 #endif /* ENABLE_XAUDIO2 */
 
 #include <stdio.h>

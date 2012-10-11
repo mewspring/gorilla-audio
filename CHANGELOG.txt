@@ -1,5 +1,11 @@
 CHANGE LOG
 ---
+0.2.8
+- Created logo.
+- Added copious Doxygen comments to the Gorilla Audio API (GAU/GC are still forthcoming).
+- Moved device headers into gorilla/devices.
+- Moved various internal functions, definitions, and data structures into ga_internal.h
+  header.
 
 0.2.7
 - Implemented XAudio2 device support for Windows.

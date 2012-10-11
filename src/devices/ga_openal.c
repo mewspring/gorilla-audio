@@ -1,6 +1,6 @@
 #include "gorilla/ga.h"
 
-#include "gorilla/ga_openal.h"
+#include "gorilla/devices/ga_openal.h"
 
 #include "al.h"
 #include "alc.h"

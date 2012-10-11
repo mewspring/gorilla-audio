@@ -1,3 +1,8 @@
+/** Threads and Synchronization.
+ *
+ *  \file gc_thread.h
+ */
+
 #ifndef _GORILLA_GC_THREAD_H
 #define _GORILLA_GC_THREAD_H
 

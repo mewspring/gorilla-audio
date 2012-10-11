@@ -1,3 +1,8 @@
+/** XAudio2 Device Implementation.
+ *
+ *  \file ga_xaudio2.h
+ */
+
 #ifndef _GORILLA_GA_XAUDIO2_H
 #define _GORILLA_GA_XAUDIO2_H
 

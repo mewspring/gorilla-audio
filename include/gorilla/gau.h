@@ -1,3 +1,10 @@
+/** Gorilla Audio Utility API.
+ *
+ *  Utility data structures and functions to enhance Gorilla Audio's functionality.
+ *
+ *  \file gau.h
+ */
+
 #ifndef _GORILLA_GAU_H
 #define _GORILLA_GAU_H
 

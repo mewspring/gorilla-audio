@@ -21,7 +21,7 @@ extern "C"
 
 /** Data structures and functions.
  *
- *  \defgroup external External Interface
+ *  \defgroup external Gorilla API
  */
 
 /*************/
@@ -58,7 +58,7 @@ extern "C"
  *
  *  \ingroup version
  */
-#define GA_VERSION_REV 7
+#define GA_VERSION_REV 8
 
 /** Compares the API version against the specified version.
  *
@@ -777,18 +777,18 @@ gc_result ga_mixer_destroy(ga_Mixer* in_mixer);
  */
 typedef struct ga_Handle ga_Handle;
 
-/** Enumerated handle parameter values for \ref ga_handle_setParamf() "ga_handle_setParam*()"
- *  and \ref ga_handle_getParamf() "ga_handle_getParam*()".
+/** Enumerated handle parameter values.
  *
- *  Used when changing playback parameters on a handle.
+ *  Used when calling \ref ga_handle_setParamf() "ga_handle_setParam*()"
+ *  or \ref ga_handle_getParamf() "ga_handle_getParam*()".
  *
  *  \ingroup ga_Handle
  *  \defgroup handleParams Handle Parameters
  */
 #define GA_HANDLE_PARAM_UNKNOWN 0 /**< Unknown parameter. \ingroup handleParams */
-#define GA_HANDLE_PARAM_PAN 1 /**< Left <-> right pan (center -> 0.0, left -> -1.0, right -> 1.0). \ingroup handleParams */
-#define GA_HANDLE_PARAM_PITCH 2 /**< Pitch/speed multiplier (normal -> 1.0). \ingroup handleParams */
-#define GA_HANDLE_PARAM_GAIN 3 /**< Gain/volume (silent -> 0.0, normal -> 1.0). \ingroup handleParams */
+#define GA_HANDLE_PARAM_PAN 1 /**< Left <-> right pan (center -> 0.0, left -> -1.0, right -> 1.0). Floating-point parameter. \ingroup handleParams */
+#define GA_HANDLE_PARAM_PITCH 2 /**< Pitch/speed multiplier (normal -> 1.0). Floating-point parameter. \ingroup handleParams */
+#define GA_HANDLE_PARAM_GAIN 3 /**< Gain/volume (silent -> 0.0, normal -> 1.0). Floating-point parameter. \ingroup handleParams */
 
 /** Enumerated parameter values for ga_handle_tell().
  *

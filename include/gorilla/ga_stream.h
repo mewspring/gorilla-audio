@@ -1,3 +1,8 @@
+/** Buffered Background Streaming.
+ *
+ *  \file ga_stream.h
+ */
+
 #ifndef _GORILLA_GA_STREAM_H
 #define _GORILLA_GA_STREAM_H
 

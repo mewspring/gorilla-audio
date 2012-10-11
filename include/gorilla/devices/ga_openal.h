@@ -1,3 +1,8 @@
+/** OpenAL Device Implementation.
+ *
+ *  \file ga_openal.h
+ */
+
 #ifndef _GORILLA_GA_OPENAL_H
 #define _GORILLA_GA_OPENAL_H
 

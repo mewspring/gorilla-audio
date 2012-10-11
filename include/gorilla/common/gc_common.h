@@ -1,3 +1,10 @@
+/** Gorilla Common API.
+ *
+ *  A collection of non-audio-specific classes that are common to most libraries.
+ *
+ *  \file gc_common.h
+ */
+
 #ifndef _GORILLA_GC_COMMON_H
 #define _GORILLA_GC_COMMON_H
 

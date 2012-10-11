@@ -185,18 +185,18 @@ set(OGGVORBIS_SRC
   )
 
 if(ENABLE_OPENAL)
-  list(APPEND GORILLA_INCLUDE ${INCLUDE_DIR}/gorilla/ga_openal.h)
-  list(APPEND GORILLA_SRC ${SRC_DIR}/ga_openal.c)
+  list(APPEND GORILLA_INCLUDE ${INCLUDE_DIR}/gorilla/devices/ga_openal.h)
+  list(APPEND GORILLA_SRC ${SRC_DIR}/devices/ga_openal.c)
 endif()
 
 if(ENABLE_DIRECTSOUND)
-  list(APPEND GORILLA_INCLUDE ${INCLUDE_DIR}/gorilla/ga_directsound.h)
-  list(APPEND GORILLA_SRC ${SRC_DIR}/ga_directsound.c)
+  list(APPEND GORILLA_INCLUDE ${INCLUDE_DIR}/gorilla/devices/ga_directsound.h)
+  list(APPEND GORILLA_SRC ${SRC_DIR}/devices/ga_directsound.c)
 endif()
 
 if(ENABLE_XAUDIO2)
-  list(APPEND GORILLA_INCLUDE ${INCLUDE_DIR}/gorilla/ga_xaudio2.h)
-  list(APPEND GORILLA_SRC ${SRC_DIR}/ga_xaudio2.c)
+  list(APPEND GORILLA_INCLUDE ${INCLUDE_DIR}/gorilla/devices/ga_xaudio2.h)
+  list(APPEND GORILLA_SRC ${SRC_DIR}/devices/ga_xaudio2.c)
 endif()
 
 source_group("include" FILES ${GORILLA_INCLUDE})

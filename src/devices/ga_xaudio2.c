@@ -1,6 +1,6 @@
 #include "gorilla/ga.h"
 
-#include "gorilla/ga_xaudio2.h"
+#include "gorilla/devices/ga_xaudio2.h"
 
 #define INITGUID
 #include <windows.h>
