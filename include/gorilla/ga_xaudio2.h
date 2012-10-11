@@ -6,6 +6,8 @@ extern "C"
 {
 #endif /* __cplusplus */
 
+#include "gorilla/ga_internal.h"
+
 typedef struct ga_DeviceImpl_XAudio2
 {
   GA_DEVICE_HEADER

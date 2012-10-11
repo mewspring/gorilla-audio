@@ -1,4 +1,5 @@
 #include "gorilla/ga.h"
+#include "gorilla/ga_internal.h"
 
 #ifdef ENABLE_OPENAL
 #include "gorilla/ga_openal.h"

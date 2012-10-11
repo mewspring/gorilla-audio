@@ -1,7 +1,7 @@
 #ifndef _GORILLA_GA_STREAM_H
 #define _GORILLA_GA_STREAM_H
 
-#include "ga.h"
+#include "gorilla/ga.h"
 
 #ifdef __cplusplus
 extern "C"

@@ -1,4 +1,5 @@
 #include "gorilla/ga.h"
+#include "gorilla/ga_internal.h"
 #include "gorilla/ga_stream.h"
 
 #include <stdio.h>
