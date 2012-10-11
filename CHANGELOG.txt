@@ -1,5 +1,9 @@
 CHANGE LOG
 ---
+0.2.9
+- Added minimal Doxygen comments to the Gorilla Common API (GAU is still forthcoming).
+- Updated Linux and OSX ports to work correctly with latest changes.
+
 0.2.8
 - Created logo.
 - Added copious Doxygen comments to the Gorilla Audio API (GAU/GC are still forthcoming).
