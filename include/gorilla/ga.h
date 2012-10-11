@@ -21,7 +21,7 @@ extern "C"
 
 /** Data structures and functions.
  *
- *  \defgroup external Gorilla API
+ *  \defgroup external Audio API (GA)
  */
 
 /*************/
