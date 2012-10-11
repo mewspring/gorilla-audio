@@ -11,6 +11,11 @@
 #pragma warning(disable:4996)
 #endif /* _WIN32 */
 
+#ifdef __linux__
+#include <strings.h>
+#define stricmp strcasecmp
+#endif /* __linux__ */
+
 /* High-Level Manager */
 static gc_int32 gauX_mixThreadFunc(void* in_context)
 {
