@@ -17,6 +17,19 @@
 #endif /* __linux__ */
 
 /* High-Level Manager */
+typedef struct gau_Manager {
+  gc_int32 threadPolicy;
+  gc_Thread* mixThread;
+  gc_Thread* streamThread;
+  ga_Device* device;
+  ga_Mixer* mixer;
+  ga_StreamManager* streamMgr;
+  gc_int32 sampleSize;
+  gc_int16* mixBuffer;
+  ga_Format format;
+  gc_int32 killThreads;
+} gau_Manager;
+
 static gc_int32 gauX_mixThreadFunc(void* in_context)
 {
   gau_Manager* ctx = (gau_Manager*)in_context;
@@ -45,10 +58,16 @@ static gc_int32 gauX_streamThreadFunc(void* in_context)
   }
   return 0;
 }
-gau_Manager* gau_manager_create(gc_int32 in_devType,
-                                gc_int32 in_threadPolicy,
-                                gc_int32 in_numBuffers,
-                                gc_int32 in_bufferSamples)
+gau_Manager* gau_manager_create()
+{
+  gau_Manager* ret;
+  ret = gau_manager_create_custom(GA_DEVICE_TYPE_DEFAULT, GAU_THREAD_POLICY_SINGLE, 4, 512);
+  return ret;
+}
+gau_Manager* gau_manager_create_custom(gc_int32 in_devType,
+                                       gc_int32 in_threadPolicy,
+                                       gc_int32 in_numBuffers,
+                                       gc_int32 in_bufferSamples)
 {
   gau_Manager* ret = gcX_ops->allocFunc(sizeof(gau_Manager));
 
@@ -134,6 +153,12 @@ void gau_manager_destroy(gau_Manager* in_mgr)
   gcX_ops->freeFunc(in_mgr->mixBuffer);
   ga_device_close(in_mgr->device);
   gcX_ops->freeFunc(in_mgr);
+}
+
+/* On-Finish Callbacks */
+void gau_on_finish_destroy(ga_Handle* in_finishedHandle, void* in_context)
+{
+  ga_handle_destroy(in_finishedHandle);
 }
 
 /* File-Based Data Source */
@@ -1096,7 +1121,16 @@ ga_SampleSource* gau_sample_source_create_sound(ga_Sound* in_sound)
 #elif defined(_WIN32)
 #define stricmp _stricmp
 #endif /* __APPLE__ */
-ga_Sound* gau_helper_sound_file(const char* in_filename, const char* in_format)
+ga_Memory* gau_load_memory_file(const char* in_filename)
+{
+  ga_Memory* ret;
+  ga_DataSource* fileDataSrc = gau_data_source_create_file(in_filename);
+  ret = ga_memory_create_data_source(fileDataSrc);
+  ga_data_source_release(fileDataSrc);
+  return ret;
+}
+
+ga_Sound* gau_load_sound_file(const char* in_filename, const char* in_format)
 {
   ga_Sound* ret = 0;
   ga_DataSource* dataSrc = gau_data_source_create_file(in_filename);
@@ -1116,17 +1150,37 @@ ga_Sound* gau_helper_sound_file(const char* in_filename, const char* in_format)
   }
   return ret;
 }
-ga_Memory* gau_helper_memory_file(const char* in_filename)
+ga_Handle* gau_create_handle_sound(ga_Mixer* in_mixer, ga_Sound* in_sound,
+                                   ga_FinishCallback in_callback, void* in_context,
+                                   gau_SampleSourceLoop** out_loopSrc)
 {
-  ga_Memory* ret;
-  ga_DataSource* fileDataSrc = gau_data_source_create_file(in_filename);
-  ret = ga_memory_create_data_source(fileDataSrc);
-  ga_data_source_release(fileDataSrc);
+  ga_Handle* ret = 0;
+  ga_SampleSource* sampleSrc = sampleSrc = gau_sample_source_create_sound(in_sound);
+  if(sampleSrc)
+  {
+    ga_SampleSource* sampleSrc2 = sampleSrc;
+    if(out_loopSrc)
+    {
+      gau_SampleSourceLoop* loopSampleSrc = gau_sample_source_create_loop(sampleSrc);
+      gau_sample_source_loop_set(loopSampleSrc, -1, 0);
+      ga_sample_source_release(sampleSrc);
+      *out_loopSrc = loopSampleSrc;
+      sampleSrc2 = (ga_SampleSource*)loopSampleSrc;
+    }
+    if(sampleSrc2)
+    {
+      ret = ga_handle_create(in_mixer, sampleSrc2);
+      if(sampleSrc == sampleSrc2)
+        ga_sample_source_release(sampleSrc2);
+      ga_handle_setCallback(ret, in_callback, in_context);
+    }
+  }
   return ret;
 }
-ga_Handle* gau_helper_memory(ga_Mixer* in_mixer, ga_Memory* in_memory, const char* in_format,
-                             ga_FinishCallback in_callback, void* in_context,
-                             gau_SampleSourceLoop** out_loopSrc)
+
+ga_Handle* gau_create_handle_memory(ga_Mixer* in_mixer, ga_Memory* in_memory, const char* in_format,
+                                    ga_FinishCallback in_callback, void* in_context,
+                                    gau_SampleSourceLoop** out_loopSrc)
 {
   ga_Handle* ret = 0;
   ga_DataSource* dataSrc = gau_data_source_create_memory(in_memory);
@@ -1159,36 +1213,10 @@ ga_Handle* gau_helper_memory(ga_Mixer* in_mixer, ga_Memory* in_memory, const cha
   }
   return ret;
 }
-ga_Handle* gau_helper_sound(ga_Mixer* in_mixer, ga_Sound* in_sound,
-                            ga_FinishCallback in_callback, void* in_context,
-                            gau_SampleSourceLoop** out_loopSrc)
-{
-  ga_Handle* ret = 0;
-  ga_SampleSource* sampleSrc = sampleSrc = gau_sample_source_create_sound(in_sound);
-  if(sampleSrc)
-  {
-    ga_SampleSource* sampleSrc2 = sampleSrc;
-    if(out_loopSrc)
-    {
-      gau_SampleSourceLoop* loopSampleSrc = gau_sample_source_create_loop(sampleSrc);
-      gau_sample_source_loop_set(loopSampleSrc, -1, 0);
-      ga_sample_source_release(sampleSrc);
-      *out_loopSrc = loopSampleSrc;
-      sampleSrc2 = (ga_SampleSource*)loopSampleSrc;
-    }
-    if(sampleSrc2)
-    {
-      ret = ga_handle_create(in_mixer, sampleSrc2);
-      if(sampleSrc == sampleSrc2)
-        ga_sample_source_release(sampleSrc2);
-      ga_handle_setCallback(ret, in_callback, in_context);
-    }
-  }
-  return ret;
-}
-ga_Handle* gau_helper_stream_data(ga_Mixer* in_mixer, ga_StreamManager* in_streamMgr, const char* in_format,
-                                  ga_DataSource* in_dataSrc, ga_FinishCallback in_callback, void* in_context,
-                                  gau_SampleSourceLoop** out_loopSrc)
+ga_Handle* gau_create_handle_buffered_data(ga_Mixer* in_mixer, ga_StreamManager* in_streamMgr,
+                                           ga_DataSource* in_dataSrc, const char* in_format,
+                                           ga_FinishCallback in_callback, void* in_context,
+                                           gau_SampleSourceLoop** out_loopSrc)
 {
   ga_Handle* ret = 0;
   ga_DataSource* dataSrc = in_dataSrc;
@@ -1228,10 +1256,10 @@ ga_Handle* gau_helper_stream_data(ga_Mixer* in_mixer, ga_StreamManager* in_strea
   }
   return ret;
 }
-ga_Handle* gau_helper_stream_file(ga_Mixer* in_mixer, ga_StreamManager* in_streamMgr,
-                                  const char* in_filename, const char* in_format,
-                                  ga_FinishCallback in_callback, void* in_context,
-                                  gau_SampleSourceLoop** out_loopSrc)
+ga_Handle* gau_create_handle_buffered_file(ga_Mixer* in_mixer, ga_StreamManager* in_streamMgr,
+                                           const char* in_filename, const char* in_format,
+                                           ga_FinishCallback in_callback, void* in_context,
+                                           gau_SampleSourceLoop** out_loopSrc)
 {
   ga_Handle* ret = 0;
   ga_DataSource* dataSrc = gau_data_source_create_file(in_filename);

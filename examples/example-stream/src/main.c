@@ -22,15 +22,15 @@ int main(int argc, char** argv)
 
   /* Initialize library + manager */
   gc_initialize(0);
-  mgr = gau_manager_create(GA_DEVICE_TYPE_DEFAULT, GAU_THREAD_POLICY_SINGLE, 4, 512);
+  mgr = gau_manager_create_custom(GA_DEVICE_TYPE_DEFAULT, GAU_THREAD_POLICY_SINGLE, 4, 512);
   mixer = gau_manager_mixer(mgr);
   streamMgr = gau_manager_streamManager(mgr);
 
   /* Create and play streaming audio */
   if(!loop)
     pLoopSrc = 0;
-  stream = gau_helper_stream_file(mixer, streamMgr, "test.ogg", "ogg",
-    &setFlagAndDestroyOnFinish, &quit, pLoopSrc);
+  stream = gau_create_handle_buffered_file(mixer, streamMgr, "test.ogg", "ogg",
+                                           &setFlagAndDestroyOnFinish, &quit, pLoopSrc);
   ga_handle_play(stream);
 
   /* Bounded mix/queue/dispatch loop */

@@ -152,7 +152,7 @@ gaX_StreamLink* gaX_stream_manager_add(ga_StreamManager* in_mgr, ga_BufferedStre
   gc_mutex_unlock(in_mgr->streamListMutex);
   return streamLink;
 }
-void ga_stream_manager_stream(ga_StreamManager* in_mgr)
+void ga_stream_manager_buffer(ga_StreamManager* in_mgr)
 {
   gc_Link* link = in_mgr->streamList.next;
   while(link != &in_mgr->streamList)

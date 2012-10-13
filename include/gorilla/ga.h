@@ -49,7 +49,7 @@ extern "C"
  *
  *  \ingroup version
  */
-#define GA_VERSION_MINOR 2
+#define GA_VERSION_MINOR 3
 
 /** Revision version number.
  *
@@ -58,7 +58,7 @@ extern "C"
  *
  *  \ingroup version
  */
-#define GA_VERSION_REV 9
+#define GA_VERSION_REV 0
 
 /** Compares the API version against the specified version.
  *

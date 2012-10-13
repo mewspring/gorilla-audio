@@ -1,5 +1,15 @@
 CHANGE LOG
 ---
+
+0.3.0
+- All documentation written, at least in provisional form (GAU still needs more
+  detail).
+- Windows builds now only enable the OpenAL device by default. You can set
+  ENABLE_XAUDIO2 in cmake-gui to enable XAudio2 devices.
+- gau_manager_create() now takes 0 parameters. To customize the gau_Manager
+  settings, please use gau_manager_create_custom().
+- Various other small changes to the interface.
+
 0.2.9
 - Added minimal Doxygen comments to the Gorilla Common API (GAU is still forthcoming).
 - Updated Linux and OSX ports to work correctly with latest changes.

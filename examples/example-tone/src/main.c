@@ -18,18 +18,17 @@ int main(int argc, char** argv)
   gc_float32 pan = 1.0f;
   gc_float32 t = 0.0f;
 
-  /* Initialize library + manager */
+  /* Initialize library + device */
   gc_initialize(0);
-  dev = ga_device_open(GA_DEVICE_TYPE_DEFAULT, 2, 2048);
-  if(!dev)
-    return 1;
-
   memset(&fmt, 0, sizeof(ga_Format));
   fmt.bitsPerSample = 16;
   fmt.numChannels = 2;
   fmt.sampleRate = 44100;
   numSamples = 2048;
   sampleSize = ga_format_sampleSize(&fmt);
+  dev = ga_device_open(GA_DEVICE_TYPE_DEFAULT, 2, 2048, &fmt);
+  if(!dev)
+    return 1;
 
   /* Allocate buffer */
   buf = (gc_int16*)malloc(numSamples * sampleSize);
@@ -51,11 +50,11 @@ int main(int argc, char** argv)
         if(t > 3.14159265f)
           t -= 3.14159265f;
       }
-      ga_device_queue(dev, &fmt, numSamples, (char*)buf);
+      ga_device_queue(dev, (char*)buf);
     }
   }
 
-  /* Clean up device + manager */
+  /* Clean up device + library */
   ga_device_close(dev);
   gc_shutdown();
 

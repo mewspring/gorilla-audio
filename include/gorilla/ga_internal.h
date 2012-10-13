@@ -45,7 +45,7 @@ extern "C"
  *  \warning Never instantiate a ga_Device directly, unless you are implementing a new concrete
  *           device implementation. Instead, you should use ga_device_open().
  */
-struct SINGLE_CLIENT ga_Device {
+struct ga_Device {
   GA_DEVICE_HEADER
 };
 
@@ -108,7 +108,7 @@ typedef void (*tDataSourceFunc_Close)(void* in_context);
  *  \ingroup intDataSource
  *  \todo Design a clearer/better system for easily extending this data type.
  */
-struct MULTI_CLIENT ga_DataSource {
+struct ga_DataSource {
   tDataSourceFunc_Read readFunc; /**< Internal read callback. */
   tDataSourceFunc_Seek seekFunc; /**< Internal seek callback (optional). */
   tDataSourceFunc_Tell tellFunc; /**< Internal tell callback (optional). */

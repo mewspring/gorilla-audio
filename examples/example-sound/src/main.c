@@ -22,14 +22,14 @@ int main(int argc, char** argv)
 
   /* Initialize library + manager */
   gc_initialize(0);
-  mgr = gau_manager_create(GA_DEVICE_TYPE_DEFAULT, GAU_THREAD_POLICY_SINGLE, 4, 512);
+  mgr = gau_manager_create();
   mixer = gau_manager_mixer(mgr);
 
   /* Create and play shared sound */
   if(!loop)
     pLoopSrc = 0;
-  sound = gau_helper_sound_file("test.wav", "wav");
-  handle = gau_helper_sound(mixer, sound, &setFlagAndDestroyOnFinish, &quit, pLoopSrc);
+  sound = gau_load_sound_file("test.wav", "wav");
+  handle = gau_create_handle_sound(mixer, sound, &setFlagAndDestroyOnFinish, &quit, pLoopSrc);
   ga_handle_play(handle);
 
   /* Bounded mix/queue/dispatch loop */
