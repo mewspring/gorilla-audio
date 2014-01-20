@@ -9,6 +9,9 @@ _build_/libgorilla.so: init $(OBJECTS)
 _build_/%.o: src/%.c
 	gcc -c -fPIC $(CFLAGS) -o $@ $<
 
+_build_/ga.o: src/ga.c
+	gcc -c -fPIC $(CFLAGS) -DENABLE_OPENAL -o $@ $<
+
 _build_/devices/ga_openal.o: src/devices/ga_openal.c
 	gcc -c -fPIC $(CFLAGS) `pkg-config --cflags openal` -o $@ $<
 
