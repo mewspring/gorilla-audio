@@ -5,6 +5,14 @@ This is a fork of the [Gorilla Audio][] library.
 
 [Gorilla Audio]: http://code.google.com/p/gorilla-audio/
 
+public domain
+-------------
+
+Any modifications made to the [Gorilla Audio][] library are hereby released into
+the *[public domain][]*.
+
+[public domain]: https://creativecommons.org/publicdomain/zero/1.0/
+
 Gorilla Audio
 =============
 
