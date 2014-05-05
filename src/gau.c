@@ -761,6 +761,7 @@ void gauX_sample_source_ogg_close(void* in_context)
   gau_SampleSourceOggContext* ctx = &((gau_SampleSourceOgg*)in_context)->context;
   ov_clear(&ctx->oggFile);
   ga_data_source_release(ctx->dataSrc);
+  gc_mutex_destroy(ctx->oggMutex);
 }
 ga_SampleSource* gau_sample_source_create_ogg(ga_DataSource* in_dataSrc)
 {
